@@ -14,3 +14,6 @@ Every push to `main` and manual workflow dispatch builds a debug APK with GitHub
 
 ## Audio transparency
 This initial build uses Android's normal audio routing via Media3. It does **not** claim verified bit-perfect USB output, exclusive USB access, PEQ, lyrics, embedded cover extraction, or Wrapped analytics yet. Those need separate implementation and device testing. For the cleanest output, disable Android sound effects and other DSP.
+
+
+Build note: CI now compiles Java and Kotlin bytecode to JVM 1.8 for compatibility.
