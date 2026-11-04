@@ -17,3 +17,5 @@ This initial build uses Android's normal audio routing via Media3. It does **not
 
 
 Build note: CI now compiles Java and Kotlin bytecode to JVM 1.8 for compatibility.
+
+Latest compile fix: Activity Result APIs now run on AndroidX ComponentActivity.
