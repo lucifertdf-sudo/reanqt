@@ -1,6 +1,6 @@
 package com.moodplayer.app
 
-import android.app.Activity
+import androidx.activity.ComponentActivity
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -21,7 +21,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
 import java.util.Locale
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private var player: ExoPlayer? = null
     private lateinit var titleView: TextView
     private lateinit var artistView: TextView
