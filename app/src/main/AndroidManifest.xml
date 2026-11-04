@@ -5,7 +5,7 @@
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="false">
         <activity
-            android:name=".MainActivity"
+            android:name=".MainActivity" android:theme="@android:style/Theme.Material.Light.NoActionBar"
             android:exported="true"
             android:screenOrientation="portrait">
             <intent-filter>
