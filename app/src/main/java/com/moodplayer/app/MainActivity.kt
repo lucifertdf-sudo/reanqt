@@ -2,20 +2,26 @@ package com.moodplayer.app
 
 import android.app.Activity
 import android.content.Intent
+import android.Manifest
+import android.content.ContentUris
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.core.widget.addTextChangedListener
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
@@ -68,6 +74,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val audioPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) scanDeviceMedia()
+        else Toast.makeText(this, "Izin audio diperlukan untuk memindai musik perangkat.", Toast.LENGTH_LONG).show()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg
@@ -75,7 +86,77 @@ class MainActivity : ComponentActivity() {
         player = ExoPlayer.Builder(this).build()
         buildLayout()
         drawTab()
+        ensureAudioPermission()
         handler.post(timer)
+    }
+
+    private fun ensureAudioPermission() {
+        val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
+                         else Manifest.permission.READ_EXTERNAL_STORAGE
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+            scanDeviceMedia()
+        } else {
+            audioPermission.launch(permission)
+        }
+    }
+
+    private fun scanDeviceMedia() {
+        val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
+                         else Manifest.permission.READ_EXTERNAL_STORAGE
+        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            audioPermission.launch(permission)
+            return
+        }
+        Thread {
+            val foundUris = mutableListOf<Uri>()
+            val foundNames = mutableListOf<String>()
+            val mediaUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            val projection = arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.DURATION
+            )
+            val selection = MediaStore.Audio.Media.DURATION + " > 0"
+            val sortOrder = MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC"
+            var scanError: String? = null
+            try {
+                contentResolver.query(mediaUri, projection, selection, null, sortOrder)?.use { cursor ->
+                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                    val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(idColumn)
+                        val title = cursor.getString(titleColumn)?.trim().takeUnless { it.isNullOrEmpty() } ?: "Unknown track"
+                        val artist = cursor.getString(artistColumn)?.trim().takeUnless { it.isNullOrEmpty() || it == "<unknown>" }
+                        val label = if (artist == null) title else title + " — " + artist
+                        foundUris.add(ContentUris.withAppendedId(mediaUri, id))
+                        foundNames.add(label)
+                    }
+                }
+            } catch (e: Exception) {
+                scanError = e.message ?: "Media scan failed"
+            }
+            runOnUiThread {
+                if (scanError != null) {
+                    Toast.makeText(this, "Scan gagal: " + scanError, Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                queue.clear()
+                queue.addAll(foundUris)
+                names.clear()
+                names.addAll(foundNames)
+                val items = foundUris.mapIndexed { index, uri ->
+                    MediaItem.Builder().setUri(uri)
+                        .setMediaMetadata(MediaMetadata.Builder().setTitle(foundNames[index]).build())
+                        .build()
+                }
+                player?.setMediaItems(items)
+                player?.prepare()
+                drawTab()
+                Toast.makeText(this, foundUris.size.toString() + " lagu ditemukan di perangkat.", Toast.LENGTH_SHORT).show()
+            }
+        }.start()
     }
 
     private fun d(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -89,7 +170,7 @@ class MainActivity : ComponentActivity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(d(18), d(12), d(18), d(7)) }
         val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         top.addView(text("◖  MOOD PLAYER", 17f, blue).apply { typeface = Typeface.DEFAULT_BOLD; letterSpacing = .16f }, LinearLayout.LayoutParams(0, d(46), 1f))
-        top.addView(text("v1.1", 11f, muted))
+        top.addView(text("v1.1.1", 11f, muted))
         root.addView(top)
         val scroll = ScrollView(this).apply { isFillViewport = true }
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, d(5), 0, d(14)) }
@@ -171,7 +252,8 @@ class MainActivity : ComponentActivity() {
         controls.addView(playButton, LinearLayout.LayoutParams(0, d(49), 1f).apply { leftMargin = d(7); rightMargin = d(7) })
         controls.addView(button("NEXT") { player?.seekToNextMediaItem() })
         body.addView(controls)
-        body.addView(button("＋  OPEN MUSIC FILES", true) { chooseFiles() }, LinearLayout.LayoutParams(-1, d(51)))
+        body.addView(button("↻  SCAN DEVICE MUSIC", true) { scanDeviceMedia() }, LinearLayout.LayoutParams(-1, d(51)))
+        body.addView(button("＋  IMPORT FILES MANUALLY", false) { chooseFiles() }, LinearLayout.LayoutParams(-1, d(47)).apply { topMargin = d(7) })
         val info = card().apply {
             addView(text("AUDIO PATH", 10f, blue))
             addView(text("Android shared audio route", 14f).apply { setPadding(0, d(5), 0, d(3)) })
@@ -183,7 +265,8 @@ class MainActivity : ComponentActivity() {
 
     private fun library() {
         pageTitle("Library", "Local tracks and playback queue")
-        body.addView(button("＋  ADD AUDIO FILES", true) { chooseFiles() }, LinearLayout.LayoutParams(-1, d(50)))
+        body.addView(button("↻  SCAN DEVICE MUSIC", true) { scanDeviceMedia() }, LinearLayout.LayoutParams(-1, d(50)))
+        body.addView(button("＋  ADD AUDIO FILES", false) { chooseFiles() }, LinearLayout.LayoutParams(-1, d(48)).apply { topMargin = d(7) })
         val search = EditText(this).apply { hint = "Search queue"; setHintTextColor(muted); setTextColor(Color.WHITE); setSingleLine(); setBackgroundColor(panel); setPadding(d(12), d(8), d(12), d(8)) }
         body.addView(search, LinearLayout.LayoutParams(-1, d(48)).apply { topMargin = d(10); bottomMargin = d(10) })
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -283,7 +366,7 @@ class MainActivity : ComponentActivity() {
         c.addView(text("DSP", 10f, blue).apply { setPadding(0, d(18), 0, d(5)) })
         c.addView(text("Turn off EQ and system sound effects for an unprocessed path.", 12f, muted))
         c.addView(text("ABOUT", 10f, blue).apply { setPadding(0, d(18), 0, d(5)) })
-        c.addView(text("Mood Player 1.1  •  Android 8.0+", 13f))
+        c.addView(text("Mood Player 1.1.1  •  Android 8.0+", 13f))
         body.addView(c)
     }
 
