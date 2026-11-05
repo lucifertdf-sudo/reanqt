@@ -44,4 +44,4 @@ jobs:
           TAG="v1.2.0"
           gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk#Mood-Player-v1.2.0.apk \
             --title "Mood Player v1.2.0" \
-            --notes "Mood Player 1.2.0 beta. Adds automatic MediaStore library scanning and updated launcher icon. Existing 5-band graphic EQ remains; parametric EQ and exclusive bit-perfect USB output are not implemented or verified. Includes tabs, local queue search, listening recap, launcher icon and 5-band graphic EQ. Parametric EQ and exclusive bit-perfect USB output are not implemented or verified. Minimum Android 8.0 (API 26)."
+            --notes "Mood Player 1.2.0 beta. Redesigned responsive interface inspired by Apple Music, larger original artwork, refined playback controls, improved library layout and bottom navigation. Local audio scanning and 5-band graphic EQ remain. Parametric EQ and exclusive bit-perfect USB output are not implemented or verified. Minimum Android 8.0 (API 26)."
