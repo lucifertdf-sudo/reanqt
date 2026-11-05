@@ -1,5 +1,6 @@
 package com.moodplayer.app
 
+import android.app.Activity
 import androidx.activity.ComponentActivity
 import android.content.Intent
 import android.graphics.Color
