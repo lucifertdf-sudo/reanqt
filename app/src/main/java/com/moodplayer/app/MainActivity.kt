@@ -456,7 +456,6 @@ class MainActivity : ComponentActivity() {
             paint.color = Color.argb(210, 222, 234, 250)
             paint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             paint.textSize = d(10).toFloat()
-            paint.letterSpacing = .2f
             canvas.drawText("MOOD PLAYER  •  LOCAL AUDIO", w * .5f, h * .89f, paint)
             canvas.restoreToCount(save)
         }
