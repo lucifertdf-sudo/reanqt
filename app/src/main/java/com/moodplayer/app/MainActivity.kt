@@ -212,7 +212,7 @@ class MainActivity : ComponentActivity() {
             clipChildren = false
             clipToPadding = false
         }
-        scroll.addView(body, ScrollView.LayoutParams(-1, -2))
+        scroll.addView(body, android.view.ViewGroup.LayoutParams(-1, -2))
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         nav = LinearLayout(this).apply {
@@ -468,7 +468,7 @@ class MainActivity : ComponentActivity() {
             setHintTextColor(muted)
             setTextColor(white)
             textSize = 14f
-            singleLine = true
+            isSingleLine = true
             background = rounded(surface2, 15)
             setPadding(d(14), d(11), d(14), d(11))
         }
