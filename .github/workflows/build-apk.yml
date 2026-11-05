@@ -33,7 +33,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mood-Player-v1.1
+          name: Mood-Player-v1.1.1
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
@@ -41,7 +41,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v1.1"
-          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk#Mood-Player-v1.1.apk \
-            --title "Mood Player v1.1" \
-            --notes "Mood Player 1.1 beta. Includes tabs, local queue search, listening recap, launcher icon and 5-band graphic EQ. Parametric EQ and exclusive bit-perfect USB output are not implemented or verified. Minimum Android 8.0 (API 26)."
+          TAG="v1.1.1"
+          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk#Mood-Player-v1.1.1.apk \
+            --title "Mood Player v1.1.1" \
+            --notes "Mood Player 1.1.1 beta. Adds automatic MediaStore library scanning and updated launcher icon. Existing 5-band graphic EQ remains; parametric EQ and exclusive bit-perfect USB output are not implemented or verified. Includes tabs, local queue search, listening recap, launcher icon and 5-band graphic EQ. Parametric EQ and exclusive bit-perfect USB output are not implemented or verified. Minimum Android 8.0 (API 26)."
