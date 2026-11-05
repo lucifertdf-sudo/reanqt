@@ -1,58 +1,47 @@
 name: Build Mood Player APK
-
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools'
-
       - name: Install Android 35 SDK components
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
       - name: Build debug APK
         run: gradle --no-daemon clean assembleDebug
-
       - name: Verify APK
         run: test -s app/build/outputs/apk/debug/app-debug.apk
-
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mood-Player-APK
+          name: Mood-Player-v1.1
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
-
       - name: Publish APK to GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v1.0.${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk#Mood-Player.apk \
-            --title "Mood Player ${TAG}" \
-            --notes "Debug beta APK. Minimum Android 8.0 (API 26)."
+          TAG="v1.1"
+          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk#Mood-Player-v1.1.apk \
+            --title "Mood Player v1.1" \
+            --notes "Mood Player 1.1 beta. Includes tabs, local queue search, listening recap, launcher icon and 5-band graphic EQ. Parametric EQ and exclusive bit-perfect USB output are not implemented or verified. Minimum Android 8.0 (API 26)."

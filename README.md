@@ -1,21 +1,14 @@
 # Mood Player
+Lightweight native Android local audio player.
 
-Mood Player is a lightweight native Android local music player.
+## v1.1
+- Android 8.0+ (API 26), navy/blue dark interface and adaptive launcher icon.
+- Home, Library, EQ, Wrapped and Settings tabs.
+- Multi-file local playback, queue list, basic queue search, play/pause, previous/next and seek.
+- Local listening recap for playback sessions and approximate playing time.
+- 5-band Android graphic equalizer, subject to device AudioEffect support.
 
-## Current build
-- Native Android app (min Android 8.0 / API 26)
-- Local audio file picker with multi-select
-- Playback queue, play/pause, previous/next and seek
-- FLAC/WAV/MP3/M4A playback through AndroidX Media3
-- Dark navy and blue minimal interface
+## Audio accuracy
+This release uses Media3 through Android's regular audio route. It does **not** implement verified exclusive USB output, bit-perfect playback, or parametric EQ with adjustable per-band frequency/Q controls. The graphic EQ changes the signal; turn it off for an unprocessed path. Android system mixing may resample audio.
 
-## Build APK
-Every push to `main` and manual workflow dispatch builds a debug APK with GitHub Actions. Open **Actions → Build Mood Player APK → latest successful run → Artifacts** and download `Mood-Player-debug-APK`.
-
-## Audio transparency
-This initial build uses Android's normal audio routing via Media3. It does **not** claim verified bit-perfect USB output, exclusive USB access, PEQ, lyrics, embedded cover extraction, or Wrapped analytics yet. Those need separate implementation and device testing. For the cleanest output, disable Android sound effects and other DSP.
-
-
-Build note: CI now compiles Java and Kotlin bytecode to JVM 1.8 for compatibility.
-
-Latest compile fix: Activity Result APIs now run on AndroidX ComponentActivity.
+A push to `main` runs GitHub Actions and publishes the debug APK to GitHub Releases.
