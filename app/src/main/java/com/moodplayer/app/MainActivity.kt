@@ -244,7 +244,7 @@ class MainActivity : ComponentActivity() {
             clipChildren = false
             clipToPadding = false
         }
-        scroll.addView(body, ScrollView.LayoutParams(-1, -2))
+        scroll.addView(body, ViewGroup.LayoutParams(-1, -2))
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         miniBar = LinearLayout(this).apply {
@@ -469,7 +469,7 @@ class MainActivity : ComponentActivity() {
             setHintTextColor(muted)
             setTextColor(white)
             textSize = 13f
-            singleLine = true
+            isSingleLine = true
             background = rounded(surface2, 14)
             setPadding(d(14), d(10), d(14), d(10))
         }
