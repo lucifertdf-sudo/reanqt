@@ -633,7 +633,7 @@ class MainActivity : ComponentActivity() {
             setHintTextColor(muted)
             setTextColor(white)
             textSize = 13f
-            singleLine = true
+            isSingleLine = true
             background = rounded(surface2, 14)
             setPadding(d(14), d(10), d(14), d(10))
         }
