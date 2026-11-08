@@ -417,6 +417,8 @@ int resolve_effective_usb_speed(libusb_device *dev, libusb_device_handle *handle
 }
 
 void close_usb_dac_internal() {
+  // A closed DAC cannot have an active direct integer pass.
+  g_audioState.bitPerfectDirectPassActive.store(false, std::memory_order_release);
   if (g_audioState.usbHandle != nullptr) {
     stop_and_join_iso_thread("closeUsbDac");
     stop_and_join_decode_thread();
