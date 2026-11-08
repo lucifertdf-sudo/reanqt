@@ -1,6 +1,11 @@
 # Mood Player
 Lightweight Android music player with local library and optional direct USB DAC output.
 
+## v1.5.1
+- Refreshed Home, Library, mini-player, bottom navigation, and Now Playing UI.
+- Retains local library playback, 5-band Android graphic EQ, TIDAL search handoff, and native USB DAC FLAC/WAV direct output.
+- Includes USB lifecycle, stream-state, and diagnostic accuracy fixes from the v1.5.0 maintenance updates.
+
 ## v1.5.0
 - Artwork-led Apple Music-inspired Home, Library and Now Playing screens.
 - Local music scan, file import, and 5-band Android graphic EQ.

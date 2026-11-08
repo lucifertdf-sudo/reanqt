@@ -783,7 +783,7 @@ class MainActivity : ComponentActivity() {
         eq.addView(text("5-band graphic EQ",14f,white,true).apply { setPadding(0,d(6),0,d(4)) })
         eq.addView(text("Android AudioEffect applies only to Android output. Direct USB playback bypasses this system EQ.",11f,muted))
         body.addView(eq,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(12) })
-        val about=pageCard();about.addView(text("ABOUT MOOD PLAYER",9f,blue,true));about.addView(text("Mood Player 1.5.0",14f,white,true).apply { setPadding(0,d(6),0,d(4)) });about.addView(text("A local music player by Reandra.",11f,muted));body.addView(about)
+        val about=pageCard();about.addView(text("ABOUT MOOD PLAYER",9f,blue,true));about.addView(text("Mood Player 1.5.1",14f,white,true).apply { setPadding(0,d(6),0,d(4)) });about.addView(text("A local music player by Reandra.",11f,muted));body.addView(about)
     }
 
     private fun openTidal(query: String?) {
