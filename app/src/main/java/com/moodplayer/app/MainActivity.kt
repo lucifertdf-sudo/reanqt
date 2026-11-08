@@ -370,64 +370,52 @@ class MainActivity : ComponentActivity() {
 
     private fun home() {
         brandHeader()
-        body.addView(text("Your music.\nYour moment.", 30f, white, true).apply {
-            setLineSpacing(d(2).toFloat(), 1f)
-            setPadding(0, d(20), 0, d(5))
-        })
-        body.addView(text("A little more room for the music you love.", 12f, muted).apply {
-            setPadding(0, 0, 0, d(18))
-        })
-
-        val hero = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = gradient(intArrayOf(Color.rgb(18, 37, 65), Color.rgb(29, 42, 66), Color.rgb(23, 28, 43)), 22)
-            setPadding(d(14), d(14), d(14), d(14))
+        body.addView(text("Good evening.", 28f, white, true).apply { setPadding(0, d(19), 0, d(3)) })
+        body.addView(text("Make room for the music.", 13f, muted).apply { setPadding(0, 0, 0, d(20)) })
+        val featured = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = gradient(intArrayOf(Color.rgb(19, 47, 79), Color.rgb(22, 32, 53), Color.rgb(15, 20, 32)), 24)
+            setPadding(d(16), d(16), d(16), d(16))
         }
-        val art = coverView(142)
-        hero.addView(art, LinearLayout.LayoutParams(d(138), d(154)).apply { rightMargin = d(14) })
-        val copy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        copy.addView(text("ON YOUR DEVICE", 9f, blue, true).apply { letterSpacing = .13f })
-        copy.addView(text("Your library", 20f, white, true).apply {
-            setPadding(0, d(9), 0, d(5))
+        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        top.addView(text("FEATURED FOR YOU", 9f, Color.rgb(137, 184, 255), true).apply { letterSpacing = .16f }, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(text("LOCAL LIBRARY", 8f, muted, true).apply { letterSpacing = .1f })
+        featured.addView(top)
+        val art = coverView(230, currentUri())
+        featured.addView(art, LinearLayout.LayoutParams(-1, d(218)).apply { topMargin = d(14); bottomMargin = d(15) })
+        featured.addView(text(names.getOrNull(player?.currentMediaItemIndex ?: -1)?.let { trackTitle(it) } ?: "Your soundtrack starts here", 21f, white, true).apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        copy.addView(text(names.size.toString() + " tracks ready to play", 11f, muted).apply {
-            maxLines = 2
+        featured.addView(text(names.getOrNull(player?.currentMediaItemIndex ?: -1)?.let { trackArtist(it) } ?: "A home for the music on your device", 12f, Color.rgb(190, 202, 221)).apply {
+            setPadding(0, d(5), 0, d(14)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        copy.addView(action("Open library  ›", true) {
-            tab = "LIBRARY"; drawTab()
-        }.apply { textSize = 11f; minHeight = d(38); setPadding(d(8), d(5), d(8), d(5)) },
-            LinearLayout.LayoutParams(-1, d(38)).apply { topMargin = d(14) })
-        hero.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
-        body.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(22) })
-
-        val rowTitle = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        rowTitle.addView(text("Recently added", 18f, white, true), LinearLayout.LayoutParams(0, -2, 1f))
-        rowTitle.addView(text("SEE ALL  ›", 9f, blue, true).apply {
-            setOnClickListener { tab = "LIBRARY"; drawTab() }
-        })
-        body.addView(rowTitle, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(11) })
+        val actions = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        actions.addView(action(if (player?.isPlaying == true) "Ⅱ  Playing" else "▶  Listen now", true) {
+            if (queue.isNotEmpty()) { if (player?.isPlaying == true) openNowPlaying() else { player?.play(); openNowPlaying() } }
+            else { tab = "LIBRARY"; drawTab() }
+        }, LinearLayout.LayoutParams(0, d(43), 1f).apply { rightMargin = d(6) })
+        actions.addView(action("＋  Add music") { chooseFiles() }, LinearLayout.LayoutParams(0, d(43), 1f).apply { leftMargin = d(6) })
+        featured.addView(actions)
+        body.addView(featured, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(24) })
+        val heading = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        heading.addView(text("Recently added", 19f, white, true), LinearLayout.LayoutParams(0, -2, 1f))
+        heading.addView(text("SEE ALL  ›", 9f, blue, true).apply { setOnClickListener { tab = "LIBRARY"; drawTab() } })
+        body.addView(heading, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(12) })
         if (names.isEmpty()) {
             val empty = pageCard()
-            empty.addView(text("Your library is waiting.", 15f, white, true))
-            empty.addView(text("Scan your device or add audio files to start listening.", 11f, muted).apply {
-                setPadding(0, d(6), 0, d(12))
-            })
+            empty.addView(text("Your music, in one place.", 15f, white, true))
+            empty.addView(text("Scan your device or import audio files to build your library.", 11f, muted).apply { setPadding(0, d(6), 0, d(13)) })
             empty.addView(action("Scan device music", true) { scanDeviceMedia() })
-            empty.addView(action("Add audio files") { chooseFiles() }, LinearLayout.LayoutParams(-1, d(44)).apply { topMargin = d(8) })
             body.addView(empty)
-        } else {
-            for (i in 0 until min(4, names.size)) addTrackRow(i)
-        }
-
-        body.addView(text("MADE FOR LISTENING", 9f, muted, true).apply {
-            letterSpacing = .16f
-            setPadding(0, d(22), 0, d(9))
-        })
-        val quick = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        quick.addView(action("↻  Scan music", true) { scanDeviceMedia() }, LinearLayout.LayoutParams(0, d(45), 1f).apply { rightMargin = d(6) })
-        quick.addView(action("＋  Add files") { chooseFiles() }, LinearLayout.LayoutParams(0, d(45), 1f).apply { leftMargin = d(6) })
-        body.addView(quick, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(12) })
+        } else for (i in 0 until min(5, names.size)) addTrackRow(i)
+        val tidal = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = rounded(surface, 18); setPadding(d(14), d(13), d(14), d(13)) }
+        val tidalCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        tidalCopy.addView(text("EXPLORE TIDAL", 9f, teal, true).apply { letterSpacing = .13f })
+        tidalCopy.addView(text("Discover music beyond your library", 12f, white, true).apply { setPadding(0, d(5), 0, 0) })
+        tidal.addView(tidalCopy, LinearLayout.LayoutParams(0, -2, 1f))
+        tidal.addView(action("Explore  ›", true) { tab = "TIDAL"; drawTab() }.apply { minHeight = d(38); textSize = 11f }, LinearLayout.LayoutParams(d(96), d(38)))
+        body.addView(tidal, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(16); bottomMargin = d(14) })
+        body.addView(text("MOOD PLAYER  •  DEVELOPER BY REANDRA", 8f, muted, true).apply { gravity = Gravity.CENTER; letterSpacing = .12f; setPadding(0, d(14), 0, d(12)) })
     }
 
     private fun addTrackRow(index: Int) {
@@ -503,59 +491,46 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun nowPlaying() {
-        sectionTitle("Now Playing", "A closer seat to the music.")
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-        val art = coverView(280)
-        card.addView(art, LinearLayout.LayoutParams(min(d(300), resources.displayMetrics.widthPixels - d(54)),
-            min(d(300), resources.displayMetrics.widthPixels - d(54))).apply {
-            bottomMargin = d(23)
-        })
-        titleView = text("Nothing playing", 21f, white, true).apply {
-            gravity = Gravity.CENTER
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        subView = text("Choose a track from your library", 12f, muted).apply {
-            gravity = Gravity.CENTER
-            setPadding(0, d(7), 0, d(18))
-        }
-        card.addView(titleView, LinearLayout.LayoutParams(-1, -2))
-        card.addView(subView, LinearLayout.LayoutParams(-1, -2))
+        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        top.addView(text("‹", 30f, white, true).apply { gravity = Gravity.CENTER; setOnClickListener { tab = "HOME"; drawTab() } }, LinearLayout.LayoutParams(d(42), d(42)))
+        val heading = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        heading.addView(text("NOW PLAYING", 10f, white, true).apply { letterSpacing = .18f; gravity = Gravity.CENTER })
+        heading.addView(text("MOOD PLAYER", 8f, muted).apply { gravity = Gravity.CENTER; setPadding(0, d(3), 0, 0) })
+        top.addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(text("•••", 17f, muted).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(d(42), d(42)))
+        body.addView(top, LinearLayout.LayoutParams(-1, d(48)).apply { bottomMargin = d(12) })
+        val artSize = min(d(310), resources.displayMetrics.widthPixels - d(56))
+        val art = coverView(artSize, currentUri())
+        art.elevation = d(8).toFloat()
+        body.addView(art, LinearLayout.LayoutParams(artSize, artSize).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = d(26) })
+        val meta = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val copy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        titleView = text("Nothing playing", 20f, white, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
+        subView = text("Choose a track from your library", 12f, muted).apply { setPadding(0, d(6), 0, 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
+        copy.addView(titleView); copy.addView(subView)
+        meta.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
+        meta.addView(text("♡", 24f, muted).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(d(42), d(42)))
+        body.addView(meta, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(15) })
         nowSeek = SeekBar(this).apply {
             progressTintList = android.content.res.ColorStateList.valueOf(blue)
             thumbTintList = android.content.res.ColorStateList.valueOf(blue)
             progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(61, 68, 82))
         }
-        card.addView(nowSeek, LinearLayout.LayoutParams(-1, d(28)))
+        body.addView(nowSeek, LinearLayout.LayoutParams(-1, d(27)))
         nowSeek.setOnSeekBarChangeListener(seekListener())
-        val times = LinearLayout(this)
-        nowElapsed = text("0:00", 10f, muted)
-        nowDuration = text("0:00", 10f, muted).apply { gravity = Gravity.END }
-        times.addView(nowElapsed, LinearLayout.LayoutParams(0, -2, 1f))
-        times.addView(nowDuration, LinearLayout.LayoutParams(0, -2, 1f))
-        card.addView(times)
-        val controls = LinearLayout(this).apply {
-            gravity = Gravity.CENTER
-            setPadding(0, d(19), 0, d(18))
-        }
-        controls.addView(text("|◀", 20f, white, true).apply {
-            gravity = Gravity.CENTER; setOnClickListener { player?.seekToPreviousMediaItem() }
-        }, LinearLayout.LayoutParams(d(62), d(54)))
-        playButton = text("Ⅱ", 21f, Color.WHITE, true).apply {
-            gravity = Gravity.CENTER; background = rounded(blue, 28); setOnClickListener { toggle() }
-        }
-        controls.addView(playButton, LinearLayout.LayoutParams(d(67), d(54)).apply {
-            leftMargin = d(22); rightMargin = d(22)
-        })
-        controls.addView(text("▶|", 20f, white, true).apply {
-            gravity = Gravity.CENTER; setOnClickListener { player?.seekToNextMediaItem() }
-        }, LinearLayout.LayoutParams(d(62), d(54)))
-        card.addView(controls)
-        card.addView(text("LOCAL AUDIO  •  MOOD PLAYER", 9f, muted, true).apply { letterSpacing = .14f })
-        body.addView(card)
+        val times = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        nowElapsed = text("0:00", 10f, muted); nowDuration = text("0:00", 10f, muted).apply { gravity = Gravity.END }
+        times.addView(nowElapsed, LinearLayout.LayoutParams(0, -2, 1f)); times.addView(nowDuration, LinearLayout.LayoutParams(0, -2, 1f))
+        body.addView(times, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(17) })
+        val controls = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0, d(3), 0, d(14)) }
+        controls.addView(text("⤨", 20f, muted).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(d(45), d(58)))
+        controls.addView(text("|◀", 22f, white, true).apply { gravity = Gravity.CENTER; setOnClickListener { player?.seekToPreviousMediaItem() } }, LinearLayout.LayoutParams(d(55), d(58)))
+        playButton = text("▶", 22f, Color.WHITE, true).apply { gravity = Gravity.CENTER; background = rounded(blue, 30); setOnClickListener { toggle() } }
+        controls.addView(playButton, LinearLayout.LayoutParams(d(68), d(58)).apply { leftMargin = d(12); rightMargin = d(12) })
+        controls.addView(text("▶|", 22f, white, true).apply { gravity = Gravity.CENTER; setOnClickListener { player?.seekToNextMediaItem() } }, LinearLayout.LayoutParams(d(55), d(58)))
+        controls.addView(text("↻", 20f, muted).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(d(45), d(58)))
+        body.addView(controls)
+        body.addView(text("PLAYING FROM  •  YOUR LIBRARY", 8f, muted, true).apply { gravity = Gravity.CENTER; letterSpacing = .15f; setPadding(0, d(5), 0, d(16)) })
         refreshTrack()
     }
 
