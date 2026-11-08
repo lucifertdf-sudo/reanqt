@@ -948,6 +948,8 @@ static void apply_pending_seek_before_start(uint32_t sr, uint64_t totalFrames, u
 }
 
 int play_audio_internal(const std::string &savedPath, jobject thiz, JNIEnv *env) {
+  // Do not carry the previous track's bit-perfect indicator into a new stream.
+  g_audioState.bitPerfectDirectPassActive.store(false, std::memory_order_release);
   if (g_audioState.deviceWedged.load()) {
     LOGE("Refusing to start playAudio because device is wedged from previous timeout. Reconnect required.");
     return -4;
@@ -1578,6 +1580,7 @@ bool resume_audio_internal() {
 }
 
 void stop_audio_internal() {
+  g_audioState.bitPerfectDirectPassActive.store(false, std::memory_order_release);
   g_audioState.isPlaying = false;
   g_audioState.isSwapping.store(false);
   g_audioState.needGaplessDecoderHandoff.store(false);
