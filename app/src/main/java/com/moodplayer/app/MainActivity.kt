@@ -1,7 +1,9 @@
 package com.moodplayer.app
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
+import java.io.File
 import android.Manifest
 import android.content.ContentUris
 import android.content.pm.PackageManager
@@ -32,12 +34,19 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import java.util.Locale
+import com.yuka.musicplayer.audio.AudioEngine
+import com.yuka.musicplayer.audio.UsbAudioController
 import kotlin.math.max
 import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
     private var player: ExoPlayer? = null
     private var equalizer: android.media.audiofx.Equalizer? = null
+    private val usbEngine by lazy { AudioEngine() }
+    private var usbController: UsbAudioController? = null
+    @Volatile private var usbReady = false
+    @Volatile private var directPlayback = false
+    private var directDurationMs: Long = 0L
     private var tab = "HOME"
     private val queue = mutableListOf<Uri>()
     private val names = mutableListOf<String>()
@@ -75,26 +84,17 @@ class MainActivity : ComponentActivity() {
         override fun run() {
             val p = player
             if (p != null) {
-                val durationMs = p.duration
-                if (durationMs > 0 && durationMs < Int.MAX_VALUE) {
-                    if (::homeSeek.isInitialized) {
-                        homeSeek.max = durationMs.toInt()
-                        homeSeek.progress = p.currentPosition.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-                        homeElapsed.text = time(p.currentPosition)
-                        homeDuration.text = time(durationMs)
-                    }
-                    if (::nowSeek.isInitialized) {
-                        nowSeek.max = durationMs.toInt()
-                        nowSeek.progress = p.currentPosition.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-                        nowElapsed.text = time(p.currentPosition)
-                        nowDuration.text = time(durationMs)
-                    }
+                val duration = if (directPlayback) directDurationMs else p.duration
+                val position = if (directPlayback) try { (usbEngine.getPosition() * 1000.0).toLong().coerceAtLeast(0L) } catch (_: Exception) { 0L } else p.currentPosition
+                if (duration > 0 && duration < Int.MAX_VALUE) {
+                    if (::homeSeek.isInitialized) { homeSeek.max=duration.toInt(); homeSeek.progress=position.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(); homeElapsed.text=time(position); homeDuration.text=time(duration) }
+                    if (::nowSeek.isInitialized) { nowSeek.max=duration.toInt(); nowSeek.progress=position.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(); nowElapsed.text=time(position); nowDuration.text=time(duration) }
                 }
                 updatePlayButtons()
                 refreshTrack()
-                if (p.isPlaying) prefs.edit().putLong("seconds", prefs.getLong("seconds", 0L) + 1L).apply()
+                if (isAudioPlaying()) prefs.edit().putLong("seconds",prefs.getLong("seconds",0L)+1L).apply()
             }
-            handler.postDelayed(this, 1000)
+            handler.postDelayed(this,1000)
         }
     }
 
@@ -115,22 +115,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = bg
-        window.navigationBarColor = bg
+        window.statusBarColor=bg
+        window.navigationBarColor=bg
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-        player = ExoPlayer.Builder(this).build()
-        player?.addListener(object : Player.Listener {
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                lastArtworkUri = null
-                refreshTrack()
-                loadCurrentArtwork()
-            }
-            override fun onIsPlayingChanged(isPlaying: Boolean) { updatePlayButtons() }
+        player=ExoPlayer.Builder(this).build()
+        player?.addListener(object:Player.Listener {
+            override fun onMediaItemTransition(mediaItem:MediaItem?,reason:Int) { lastArtworkUri=null; refreshTrack(); loadCurrentArtwork() }
+            override fun onIsPlayingChanged(isPlaying:Boolean) { updatePlayButtons() }
         })
-        buildLayout()
-        drawTab()
-        ensureAudioPermission()
-        handler.post(timer)
+        buildLayout(); drawTab(); ensureAudioPermission(); setupUsbAudio(); handler.post(timer)
     }
 
     private fun ensureAudioPermission() {
@@ -340,14 +333,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun brandHeader() {
-        val line = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        line.addView(text("◖", 25f, blue, true))
-        line.addView(text("MOOD PLAYER", 12f, white, true).apply {
-            letterSpacing = .16f
-            setPadding(d(7), 0, 0, 0)
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        line.addView(text("1.3.0", 10f, muted))
-        body.addView(line, LinearLayout.LayoutParams(-1, d(42)))
+        val line=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        line.addView(text("◖",26f,blue,true))
+        line.addView(text("MOOD",13f,white,true).apply { letterSpacing=.18f; setPadding(d(8),0,0,0) })
+        line.addView(text("PLAYER",13f,blue,true).apply { letterSpacing=.18f; setPadding(d(4),0,0,0) })
+        line.addView(LinearLayout(this),LinearLayout.LayoutParams(0,1,1f))
+        line.addView(text("1.5.0",10f,muted))
+        body.addView(line,LinearLayout.LayoutParams(-1,d(44)))
     }
 
     private fun sectionTitle(title: String, subtitle: String? = null) {
@@ -370,84 +362,65 @@ class MainActivity : ComponentActivity() {
 
     private fun home() {
         brandHeader()
-        body.addView(text("Good evening.", 28f, white, true).apply { setPadding(0, d(19), 0, d(3)) })
-        body.addView(text("Make room for the music.", 13f, muted).apply { setPadding(0, 0, 0, d(20)) })
-        val featured = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = gradient(intArrayOf(Color.rgb(19, 47, 79), Color.rgb(22, 32, 53), Color.rgb(15, 20, 32)), 24)
-            setPadding(d(16), d(16), d(16), d(16))
+        body.addView(text("Listen Now",32f,white,true).apply { setPadding(0,d(19),0,d(2)) })
+        body.addView(text("Your music. Your space.",13f,muted).apply { setPadding(0,0,0,d(21)) })
+        if(names.isEmpty()) {
+            body.addView(text("Start with your library",19f,white,true).apply { setPadding(0,d(24),0,d(7)) })
+            body.addView(text("Bring the music stored on this device into Mood Player.",12f,muted).apply { setPadding(0,0,0,d(17)) })
+            body.addView(action("＋  Add music",true){chooseFiles()},LinearLayout.LayoutParams(-1,d(48)))
+            body.addView(action("Scan device library"){scanDeviceMedia()},LinearLayout.LayoutParams(-1,d(46)).apply { topMargin=d(9) })
+        } else {
+            val feature=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+            val label=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+            label.addView(text("PICK UP WHERE YOU LEFT OFF",9f,blue,true).apply { letterSpacing=.14f },LinearLayout.LayoutParams(0,-2,1f))
+            label.addView(text("LOCAL MUSIC",9f,muted,true))
+            feature.addView(label)
+            feature.addView(coverView(270,currentUri()?:queue.firstOrNull()),LinearLayout.LayoutParams(-1,d(250)).apply { topMargin=d(15); bottomMargin=d(15) })
+            val index=(player?.currentMediaItemIndex?:0).coerceIn(0,names.lastIndex)
+            feature.addView(text(trackTitle(names[index]),21f,white,true).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END })
+            feature.addView(text(trackArtist(names[index]),12f,muted).apply { setPadding(0,d(5),0,d(14)); maxLines=1 })
+            val buttons=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+            buttons.addView(action(if(isAudioPlaying()) "Ⅱ  Now playing" else "▶  Play",true){ if(isAudioPlaying()) openNowPlaying() else playIndex(index) },LinearLayout.LayoutParams(0,d(46),1f).apply { rightMargin=d(5) })
+            buttons.addView(action("＋  Add music"){chooseFiles()},LinearLayout.LayoutParams(0,d(46),1f).apply { leftMargin=d(5) })
+            feature.addView(buttons)
+            body.addView(feature,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(28) })
         }
-        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        top.addView(text("FEATURED FOR YOU", 9f, Color.rgb(137, 184, 255), true).apply { letterSpacing = .16f }, LinearLayout.LayoutParams(0, -2, 1f))
-        top.addView(text("LOCAL LIBRARY", 8f, muted, true).apply { letterSpacing = .1f })
-        featured.addView(top)
-        val art = coverView(230, currentUri())
-        featured.addView(art, LinearLayout.LayoutParams(-1, d(218)).apply { topMargin = d(14); bottomMargin = d(15) })
-        featured.addView(text(names.getOrNull(player?.currentMediaItemIndex ?: -1)?.let { trackTitle(it) } ?: "Your soundtrack starts here", 21f, white, true).apply {
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-        })
-        featured.addView(text(names.getOrNull(player?.currentMediaItemIndex ?: -1)?.let { trackArtist(it) } ?: "A home for the music on your device", 12f, Color.rgb(190, 202, 221)).apply {
-            setPadding(0, d(5), 0, d(14)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-        })
-        val actions = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        actions.addView(action(if (player?.isPlaying == true) "Ⅱ  Playing" else "▶  Listen now", true) {
-            if (queue.isNotEmpty()) { if (player?.isPlaying == true) openNowPlaying() else { player?.play(); openNowPlaying() } }
-            else { tab = "LIBRARY"; drawTab() }
-        }, LinearLayout.LayoutParams(0, d(43), 1f).apply { rightMargin = d(6) })
-        actions.addView(action("＋  Add music") { chooseFiles() }, LinearLayout.LayoutParams(0, d(43), 1f).apply { leftMargin = d(6) })
-        featured.addView(actions)
-        body.addView(featured, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(24) })
-        val heading = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        heading.addView(text("Recently added", 19f, white, true), LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(text("SEE ALL  ›", 9f, blue, true).apply { setOnClickListener { tab = "LIBRARY"; drawTab() } })
-        body.addView(heading, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(12) })
-        if (names.isEmpty()) {
-            val empty = pageCard()
-            empty.addView(text("Your music, in one place.", 15f, white, true))
-            empty.addView(text("Scan your device or import audio files to build your library.", 11f, muted).apply { setPadding(0, d(6), 0, d(13)) })
-            empty.addView(action("Scan device music", true) { scanDeviceMedia() })
-            body.addView(empty)
-        } else for (i in 0 until min(5, names.size)) addTrackRow(i)
-        val tidal = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = rounded(surface, 18); setPadding(d(14), d(13), d(14), d(13)) }
-        val tidalCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        tidalCopy.addView(text("EXPLORE TIDAL", 9f, teal, true).apply { letterSpacing = .13f })
-        tidalCopy.addView(text("Discover music beyond your library", 12f, white, true).apply { setPadding(0, d(5), 0, 0) })
-        tidal.addView(tidalCopy, LinearLayout.LayoutParams(0, -2, 1f))
-        tidal.addView(action("Explore  ›", true) { tab = "TIDAL"; drawTab() }.apply { minHeight = d(38); textSize = 11f }, LinearLayout.LayoutParams(d(96), d(38)))
-        body.addView(tidal, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(16); bottomMargin = d(14) })
-        body.addView(text("MOOD PLAYER  •  DEVELOPER BY REANDRA", 8f, muted, true).apply { gravity = Gravity.CENTER; letterSpacing = .12f; setPadding(0, d(14), 0, d(12)) })
+        val shelfTitle=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        shelfTitle.addView(text("Recently Added",20f,white,true),LinearLayout.LayoutParams(0,-2,1f))
+        shelfTitle.addView(text("See All  ›",11f,blue,true).apply { setOnClickListener { tab="LIBRARY"; drawTab() } })
+        body.addView(shelfTitle,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(13) })
+        if(names.isNotEmpty()) {
+            val scroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false }
+            val shelf=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+            for(i in 0 until min(10,names.size)) {
+                val tile=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; isClickable=true; isFocusable=true; setOnClickListener { playIndex(i) } }
+                tile.addView(coverView(d(138),queue.getOrNull(i)),LinearLayout.LayoutParams(d(138),d(138)))
+                tile.addView(text(trackTitle(names[i]),12f,white,true).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; setPadding(0,d(8),0,d(3)) })
+                tile.addView(text(trackArtist(names[i]),10f,muted).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END })
+                shelf.addView(tile,LinearLayout.LayoutParams(d(138),-2).apply { rightMargin=d(13) })
+            }
+            scroll.addView(shelf); body.addView(scroll,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(24) })
+        } else body.addView(text("Your recently added music will appear here.",12f,muted).apply { setPadding(0,0,0,d(25)) })
+        val tidal=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(0,d(14),0,d(14)) }
+        val copy=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        copy.addView(text("DISCOVER MORE",9f,teal,true).apply { letterSpacing=.12f })
+        copy.addView(text("Explore TIDAL catalogue",14f,white,true).apply { setPadding(0,d(5),0,0) })
+        tidal.addView(copy,LinearLayout.LayoutParams(0,-2,1f))
+        tidal.addView(action("Open  ↗"){tab="TIDAL";drawTab()},LinearLayout.LayoutParams(d(100),d(40)))
+        body.addView(tidal,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(12) })
     }
 
     private fun addTrackRow(index: Int) {
-        if (index !in names.indices) return
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(d(8), d(7), d(7), d(7))
-            background = rounded(surface, 15)
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { playIndex(index) }
-        }
-        val icon = TextView(this).apply {
-            gravity = Gravity.CENTER
-            text = "♫"
-            textSize = 20f
-            setTextColor(Color.WHITE)
-            background = gradient(intArrayOf(Color.rgb(27, 93, 140), Color.rgb(67, 63, 135)), 11)
-        }
-        row.addView(icon, LinearLayout.LayoutParams(d(43), d(43)).apply { rightMargin = d(10) })
-        val copy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        copy.addView(text(trackTitle(names[index]), 12f, white, true).apply {
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-        })
-        copy.addView(text(trackArtist(names[index]), 10f, muted).apply {
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-            setPadding(0, d(4), 0, 0)
-        })
-        row.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(text("•••", 13f, muted))
-        body.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(6) })
+        if(index !in names.indices) return
+        val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(0,d(8),0,d(8)); isClickable=true; isFocusable=true; setOnClickListener { playIndex(index) } }
+        row.addView(coverView(d(52),queue.getOrNull(index)),LinearLayout.LayoutParams(d(52),d(52)).apply { rightMargin=d(12) })
+        val copy=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        copy.addView(text(trackTitle(names[index]),13f,white,true).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END })
+        copy.addView(text(trackArtist(names[index]),11f,muted).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; setPadding(0,d(5),0,0) })
+        row.addView(copy,LinearLayout.LayoutParams(0,-2,1f))
+        row.addView(text(if(index==player?.currentMediaItemIndex && isAudioPlaying()) "Ⅱ" else "•••",13f,if(index==player?.currentMediaItemIndex && isAudioPlaying()) blue else muted))
+        body.addView(row,LinearLayout.LayoutParams(-1,-2))
+        body.addView(View(this).apply { setBackgroundColor(Color.rgb(34,39,51)) },LinearLayout.LayoutParams(-1,d(1)))
     }
 
     private fun library() {
@@ -491,58 +464,45 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun nowPlaying() {
-        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        top.addView(text("‹", 30f, white, true).apply { gravity = Gravity.CENTER; setOnClickListener { tab = "HOME"; drawTab() } }, LinearLayout.LayoutParams(d(42), d(42)))
-        val heading = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
-        heading.addView(text("NOW PLAYING", 10f, white, true).apply { letterSpacing = .18f; gravity = Gravity.CENTER })
-        heading.addView(text("MOOD PLAYER", 8f, muted).apply { gravity = Gravity.CENTER; setPadding(0, d(3), 0, 0) })
-        top.addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
-        top.addView(text("•••", 17f, muted).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(d(42), d(42)))
-        body.addView(top, LinearLayout.LayoutParams(-1, d(48)).apply { bottomMargin = d(12) })
-        val artSize = min(d(310), resources.displayMetrics.widthPixels - d(56))
-        val art = coverView(artSize, currentUri())
-        art.elevation = d(8).toFloat()
-        body.addView(art, LinearLayout.LayoutParams(artSize, artSize).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = d(26) })
-        val meta = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val copy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titleView = text("Nothing playing", 20f, white, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
-        subView = text("Choose a track from your library", 12f, muted).apply { setPadding(0, d(6), 0, 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
-        copy.addView(titleView); copy.addView(subView)
-        meta.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
-        meta.addView(text("♡", 24f, muted).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(d(42), d(42)))
-        body.addView(meta, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(15) })
-        nowSeek = SeekBar(this).apply {
-            progressTintList = android.content.res.ColorStateList.valueOf(blue)
-            thumbTintList = android.content.res.ColorStateList.valueOf(blue)
-            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(61, 68, 82))
-        }
-        body.addView(nowSeek, LinearLayout.LayoutParams(-1, d(27)))
-        nowSeek.setOnSeekBarChangeListener(seekListener())
-        val times = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        nowElapsed = text("0:00", 10f, muted); nowDuration = text("0:00", 10f, muted).apply { gravity = Gravity.END }
-        times.addView(nowElapsed, LinearLayout.LayoutParams(0, -2, 1f)); times.addView(nowDuration, LinearLayout.LayoutParams(0, -2, 1f))
-        body.addView(times, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(17) })
-        val controls = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0, d(3), 0, d(14)) }
-        controls.addView(text("⤨", 20f, muted).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(d(45), d(58)))
-        controls.addView(text("|◀", 22f, white, true).apply { gravity = Gravity.CENTER; setOnClickListener { player?.seekToPreviousMediaItem() } }, LinearLayout.LayoutParams(d(55), d(58)))
-        playButton = text("▶", 22f, Color.WHITE, true).apply { gravity = Gravity.CENTER; background = rounded(blue, 30); setOnClickListener { toggle() } }
-        controls.addView(playButton, LinearLayout.LayoutParams(d(68), d(58)).apply { leftMargin = d(12); rightMargin = d(12) })
-        controls.addView(text("▶|", 22f, white, true).apply { gravity = Gravity.CENTER; setOnClickListener { player?.seekToNextMediaItem() } }, LinearLayout.LayoutParams(d(55), d(58)))
-        controls.addView(text("↻", 20f, muted).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(d(45), d(58)))
+        val top=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        top.addView(text("⌄",28f,white,true).apply { gravity=Gravity.CENTER; setOnClickListener { tab="HOME";drawTab() } },LinearLayout.LayoutParams(d(44),d(44)))
+        val heading=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER }
+        heading.addView(text("NOW PLAYING",10f,white,true).apply { letterSpacing=.2f;gravity=Gravity.CENTER })
+        heading.addView(text(if(directPlayback) "USB DAC OUTPUT" else "MOOD PLAYER",8f,muted).apply { gravity=Gravity.CENTER;setPadding(0,d(4),0,0) })
+        top.addView(heading,LinearLayout.LayoutParams(0,-2,1f))
+        top.addView(text("•••",18f,muted).apply { gravity=Gravity.CENTER;setOnClickListener { showTrackDiagnostics() } },LinearLayout.LayoutParams(d(44),d(44)))
+        body.addView(top,LinearLayout.LayoutParams(-1,d(48)).apply { bottomMargin=d(12) })
+        val size=min(d(326),resources.displayMetrics.widthPixels-d(52))
+        val art=coverView(size,currentUri()); art.elevation=d(13).toFloat()
+        body.addView(art,LinearLayout.LayoutParams(size,size).apply { gravity=Gravity.CENTER_HORIZONTAL;bottomMargin=d(27) })
+        val meta=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        val copy=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        titleView=text("Nothing playing",22f,white,true).apply { maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END }
+        subView=text("Choose a track from your library",13f,muted).apply { setPadding(0,d(6),0,0);maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END }
+        copy.addView(titleView);copy.addView(subView);meta.addView(copy,LinearLayout.LayoutParams(0,-2,1f))
+        meta.addView(text("♡",24f,muted).apply { gravity=Gravity.CENTER;setOnClickListener { Toast.makeText(this@MainActivity,"Favorites are not available yet.",Toast.LENGTH_SHORT).show() } },LinearLayout.LayoutParams(d(42),d(42)))
+        body.addView(meta,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(17) })
+        nowSeek=SeekBar(this).apply { progressTintList=android.content.res.ColorStateList.valueOf(blue);thumbTintList=android.content.res.ColorStateList.valueOf(blue);progressBackgroundTintList=android.content.res.ColorStateList.valueOf(Color.rgb(61,68,82)) }
+        body.addView(nowSeek,LinearLayout.LayoutParams(-1,d(28)));nowSeek.setOnSeekBarChangeListener(seekListener())
+        val times=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
+        nowElapsed=text("0:00",10f,muted);nowDuration=text("0:00",10f,muted).apply { gravity=Gravity.END }
+        times.addView(nowElapsed,LinearLayout.LayoutParams(0,-2,1f));times.addView(nowDuration,LinearLayout.LayoutParams(0,-2,1f))
+        body.addView(times,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(19) })
+        val controls=LinearLayout(this).apply { gravity=Gravity.CENTER;setPadding(0,d(2),0,d(13)) }
+        controls.addView(text("|◀",24f,white,true).apply { gravity=Gravity.CENTER;setOnClickListener { val n=(player?.currentMediaItemIndex?:-1)-1;if(n in queue.indices)playIndex(n) } },LinearLayout.LayoutParams(d(60),d(58)))
+        playButton=text("▶",24f,Color.WHITE,true).apply { gravity=Gravity.CENTER;background=rounded(blue,32);setOnClickListener { toggle() } }
+        controls.addView(playButton,LinearLayout.LayoutParams(d(72),d(62)).apply { leftMargin=d(18);rightMargin=d(18) })
+        controls.addView(text("▶|",24f,white,true).apply { gravity=Gravity.CENTER;setOnClickListener { val n=(player?.currentMediaItemIndex?:-1)+1;if(n in queue.indices)playIndex(n) } },LinearLayout.LayoutParams(d(60),d(58)))
         body.addView(controls)
-        body.addView(text("PLAYING FROM  •  YOUR LIBRARY", 8f, muted, true).apply { gravity = Gravity.CENTER; letterSpacing = .15f; setPadding(0, d(5), 0, d(16)) })
+        val out=if(directPlayback) "USB DAC DIRECT OUTPUT" else if(usbReady) "USB DAC READY · FLAC/WAV" else "ANDROID AUDIO OUTPUT"
+        body.addView(text(out,9f,if(directPlayback)teal else muted,true).apply { gravity=Gravity.CENTER;letterSpacing=.12f;setPadding(0,d(13),0,d(13));background=rounded(surface,13) },LinearLayout.LayoutParams(-1,d(42)))
         refreshTrack()
     }
 
-    private fun seekListener() = object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(s: SeekBar?, value: Int, fromUser: Boolean) {
-            if (fromUser) {
-                if (::homeElapsed.isInitialized && s === homeSeek) homeElapsed.text = time(value.toLong())
-                if (::nowElapsed.isInitialized && s === nowSeek) nowElapsed.text = time(value.toLong())
-            }
-        }
-        override fun onStartTrackingTouch(s: SeekBar?) {}
-        override fun onStopTrackingTouch(s: SeekBar?) { player?.seekTo(s?.progress?.toLong() ?: 0L) }
+    private fun seekListener()=object:SeekBar.OnSeekBarChangeListener {
+        override fun onProgressChanged(s:SeekBar?,v:Int,fromUser:Boolean){if(fromUser){if(::homeElapsed.isInitialized&&s===homeSeek)homeElapsed.text=time(v.toLong());if(::nowElapsed.isInitialized&&s===nowSeek)nowElapsed.text=time(v.toLong())}}
+        override fun onStartTrackingTouch(s:SeekBar?){}
+        override fun onStopTrackingTouch(s:SeekBar?){val p=s?.progress?.toLong()?:0L;if(directPlayback)try{usbEngine.seekTo(p/1000.0)}catch(_:Exception){}else player?.seekTo(p)}
     }
 
     private fun eqScreen() {
@@ -627,27 +587,27 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun settings() {
-        sectionTitle("More", "Your player, your settings.")
-        val stats = pageCard()
-        stats.addView(text("YOUR LISTENING", 9f, blue, true).apply { letterSpacing = .14f })
-        stats.addView(text((prefs.getLong("seconds", 0L) / 60).toString() + " minutes", 24f, white, true).apply {
-            setPadding(0, d(7), 0, d(4))
-        })
-        stats.addView(text("Approximate playback time on this device.", 10f, muted))
-        body.addView(stats, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(10) })
-        val cards = listOf(
-            Triple("AUDIO OUTPUT", "Android shared audio route", "The system may resample audio. Exclusive USB DAC output is not implemented."),
-            Triple("BIT-PERFECT", "Not available / not verified", "Mood Player does not claim bit-perfect output."),
-            Triple("EQUALIZER", "5-band graphic EQ", "Parametric EQ with adjustable Q is not included."),
-            Triple("ABOUT", "Mood Player 1.3.0", "Developer by Reandra.")
-        )
-        cards.forEach { item ->
-            val c = pageCard()
-            c.addView(text(item.first, 9f, blue, true).apply { letterSpacing = .12f })
-            c.addView(text(item.second, 13f, white, true).apply { setPadding(0, d(6), 0, d(4)) })
-            c.addView(text(item.third, 10f, muted))
-            body.addView(c, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(9) })
-        }
+        sectionTitle("More","Playback, output and app details.")
+        val output=pageCard()
+        output.addView(text("USB DAC OUTPUT",9f,blue,true).apply { letterSpacing=.14f })
+        val verified=if(directPlayback)try{usbEngine.isBitPerfectIntegerPassActive()}catch(_:Exception){false}else false
+        val state=when { directPlayback&&verified->"Direct USB · bit-perfect pass active";directPlayback->"Direct USB · audio is playing";usbReady->"DAC connected · FLAC/WAV ready";else->"No USB DAC connected" }
+        output.addView(text(state,16f,white,true).apply { setPadding(0,d(8),0,d(5)) })
+        output.addView(text("Direct output uses the USB device connection. MP3/AAC and unsupported formats continue through Android audio. Bit-perfect status appears only when the engine confirms an active integer pass.",11f,muted))
+        output.addView(action("Scan / connect USB DAC",true){usbController?.scanAndRequestPermission()},LinearLayout.LayoutParams(-1,d(44)).apply { topMargin=d(14) })
+        output.addView(action("USB diagnostics"){showTrackDiagnostics()},LinearLayout.LayoutParams(-1,d(42)).apply { topMargin=d(8) })
+        body.addView(output,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(12) })
+        val stats=pageCard()
+        stats.addView(text("YOUR LISTENING",9f,blue,true))
+        stats.addView(text((prefs.getLong("seconds",0L)/60).toString()+" minutes",24f,white,true).apply { setPadding(0,d(7),0,d(4)) })
+        stats.addView(text("Approximate playback time on this device.",10f,muted))
+        body.addView(stats,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(12) })
+        val eq=pageCard()
+        eq.addView(text("EQUALIZER",9f,blue,true))
+        eq.addView(text("5-band graphic EQ",14f,white,true).apply { setPadding(0,d(6),0,d(4)) })
+        eq.addView(text("Android AudioEffect applies only to Android output. Direct USB playback bypasses this system EQ.",11f,muted))
+        body.addView(eq,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(12) })
+        val about=pageCard();about.addView(text("ABOUT MOOD PLAYER",9f,blue,true));about.addView(text("Mood Player 1.5.0",14f,white,true).apply { setPadding(0,d(6),0,d(4)) });about.addView(text("A local music player by Reandra.",11f,muted));body.addView(about)
     }
 
     private fun openTidal(query: String?) {
@@ -658,6 +618,53 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) {
             Toast.makeText(this, "TIDAL tidak bisa dibuka di perangkat ini.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun setupUsbAudio() {
+        try {
+            usbEngine.onTrackFinishedCallback={handler.post{val next=(player?.currentMediaItemIndex?:-1)+1;if(next in queue.indices)playIndex(next)else{directPlayback=false;directDurationMs=0L;updatePlayButtons()}}}
+            usbEngine.onUsbStallFaultCallback={handler.post{val i=player?.currentMediaItemIndex?:-1;val pos=try{(usbEngine.getPosition()*1000.0).toLong()}catch(_:Exception){0L};directPlayback=false;directDurationMs=0L;if(i in queue.indices){player?.seekTo(i,pos);player?.play()};Toast.makeText(this,"USB audio stalled. Switched to Android output.",Toast.LENGTH_LONG).show();updatePlayButtons()}}
+            usbEngine.onDeviceForceDisconnectedCallback={handler.post{usbReady=false;val i=player?.currentMediaItemIndex?:-1;directPlayback=false;directDurationMs=0L;if(i in queue.indices)player?.play();Toast.makeText(this,"USB DAC disconnected.",Toast.LENGTH_LONG).show();updatePlayButtons()}}
+            usbController=UsbAudioController(this).apply {
+                onDeviceReady={fd->Thread{val ready=try{usbEngine.initUsbDac(fd)}catch(_:Exception){false};runOnUiThread{usbReady=ready;Toast.makeText(this@MainActivity,if(ready)"USB DAC ready. FLAC/WAV can use direct USB."else"USB DAC detected, direct initialization failed.",Toast.LENGTH_LONG).show();if(tab=="MORE")drawTab()}}.start()}
+                onDeviceDetached={
+                    val wasDirect=directPlayback;val i=player?.currentMediaItemIndex?:-1
+                    val pos=if(wasDirect)try{(usbEngine.getPosition()*1000.0).toLong().coerceAtLeast(0L)}catch(_:Exception){0L}else 0L
+                    try{usbEngine.stopAudio();usbEngine.closeUsbDac()}catch(_:Exception){}
+                    runOnUiThread{usbReady=false;directPlayback=false;directDurationMs=0L;if(wasDirect&&i in queue.indices){player?.seekTo(i,pos);player?.play()};Toast.makeText(this@MainActivity,"USB DAC disconnected. Android output restored.",Toast.LENGTH_SHORT).show();updatePlayButtons();if(tab=="MORE"||tab=="PLAYER")drawTab()}
+                }
+                onDeviceAttached={runOnUiThread{Toast.makeText(this@MainActivity,"USB audio device detected.",Toast.LENGTH_SHORT).show()}}
+            }
+            usbController?.scanAndRequestPermission()
+        }catch(e:Exception){usbReady=false;Toast.makeText(this,"USB audio initialization unavailable: "+(e.message?:"unknown"),Toast.LENGTH_LONG).show()}
+    }
+
+    private fun resolveDirectAudioFile(uri:Uri):File? {
+        var source:File?=null
+        if(uri.scheme=="file")uri.path?.let{source=File(it)}
+        if(source==null)try{contentResolver.query(uri,arrayOf(MediaStore.MediaColumns.DATA),null,null,null)?.use{c->if(c.moveToFirst()){val i=c.getColumnIndex(MediaStore.MediaColumns.DATA);if(i>=0)c.getString(i)?.let{source=File(it)}}}}catch(_:Exception){}
+        if(source?.exists()==true&&source?.isFile==true){val ext=source!!.extension.lowercase(Locale.US);if(ext=="flac"||ext=="wav")return source}
+        var name="audio"
+        try{contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use{if(it.moveToFirst())name=it.getString(0)?:name}}catch(_:Exception){}
+        if(name=="audio")name=uri.lastPathSegment?:"audio"
+        val ext=name.substringAfterLast('.', "").lowercase(Locale.US)
+        if(ext!="flac"&&ext!="wav")return null
+        val dst=File(cacheDir,"mood_direct_"+uri.toString().hashCode()+"."+ext)
+        return try{if(!dst.exists()||dst.length()==0L)contentResolver.openInputStream(uri)?.use{input->dst.outputStream().use{output->input.copyTo(output)}};dst.takeIf{it.exists()&&it.length()>0L}}catch(_:Exception){null}
+    }
+
+    private fun readAudioDuration(file:File):Long {
+        return try{val r=MediaMetadataRetriever();r.setDataSource(file.absolutePath);val d=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?:0L;r.release();d}catch(_:Exception){0L}
+    }
+
+    private fun showTrackDiagnostics() {
+        val details=try{
+            val info=if(usbReady)usbEngine.getDacInfo() else "USB DAC not initialized"
+            val log=if(usbReady)usbEngine.getLastUsbDiagnostic() else UsbAudioController.getTrace()
+            val mode=if(directPlayback)"Direct USB active\nSample rate: "+usbEngine.getSampleRate()+" Hz\nSource depth: "+usbEngine.getSourceBitDepth()+" bit\nOutput depth: "+usbEngine.getNegotiatedBitDepth()+" bit\nBit-perfect integer pass: "+usbEngine.isBitPerfectIntegerPassActive() else "Direct playback inactive"
+            mode+"\n\nDAC: "+info+"\n\nUSB log:\n"+log
+        }catch(e:Exception){"USB diagnostic unavailable: "+e.message}
+        AlertDialog.Builder(this).setTitle("USB audio diagnostics").setMessage(details).setPositiveButton("OK",null).show()
     }
 
     private fun getEq(): android.media.audiofx.Equalizer? {
@@ -680,23 +687,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openTracks(uris: List<Uri>) {
-        val p = player ?: return
+        val p=player?:return
         try {
-            queue.clear(); queue.addAll(uris); names.clear()
-            val items = uris.map { uri ->
-                try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) {}
-                val name = fileName(uri)
-                names.add(name)
-                MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(name).build()).build()
-            }
-            p.setMediaItems(items); p.prepare(); p.play()
-            prefs.edit().putInt("plays", prefs.getInt("plays", 0) + 1).apply()
-            lastArtworkUri = null
-            refreshMiniPlayer()
-            drawTab()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Could not open audio: " + (e.message ?: "unknown error"), Toast.LENGTH_LONG).show()
-        }
+            if(directPlayback)try{usbEngine.stopAudio()}catch(_:Exception){}
+            directPlayback=false;directDurationMs=0L;queue.clear();queue.addAll(uris);names.clear()
+            val items=uris.map{uri->try{contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)}catch(_:Exception){};val name=fileName(uri);names.add(name);MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(name).build()).build()}
+            p.setMediaItems(items);p.prepare();prefs.edit().putInt("plays",prefs.getInt("plays",0)+1).apply();lastArtworkUri=null
+            if(uris.isNotEmpty())playIndex(0)else{p.pause();refreshMiniPlayer();drawTab()}
+        }catch(e:Exception){Toast.makeText(this,"Could not open audio: "+(e.message?:"unknown error"),Toast.LENGTH_LONG).show()}
     }
 
     private fun fileName(uri: Uri): String {
@@ -710,15 +708,29 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playIndex(index: Int) {
-        val p = player ?: return
-        if (index in queue.indices) {
-            p.seekTo(index, 0L)
-            p.play()
-            prefs.edit().putInt("plays", prefs.getInt("plays", 0) + 1).apply()
-            lastArtworkUri = null
-            refreshTrack()
-            loadCurrentArtwork()
+        val p=player?:return
+        if(index !in queue.indices)return
+        if(directPlayback)try{usbEngine.stopAudio()}catch(_:Exception){}
+        directPlayback=false;directDurationMs=0L
+        try{p.seekTo(index,0L);p.pause()}catch(_:Exception){}
+        if(usbReady) {
+            val file=resolveDirectAudioFile(queue[index])
+            if(file!=null) {
+                val result=try{usbEngine.playAudio(file.absolutePath)}catch(_:Exception){-99}
+                if(result==0) {
+                    directPlayback=true;directDurationMs=readAudioDuration(file)
+                    try{equalizer?.enabled=false}catch(_:Exception){}
+                    p.pause();refreshTrack();refreshMiniPlayer();updatePlayButtons()
+                    if(tab=="PLAYER")drawTab()
+                    return
+                } else Toast.makeText(this,"Direct USB rejected (code $result). Using Android output.",Toast.LENGTH_SHORT).show()
+            }
         }
+        try{usbEngine.stopAudio()}catch(_:Exception){}
+        directPlayback=false
+        try{p.seekTo(index,0L);p.play()}catch(_:Exception){}
+        try{getEq()?.enabled=true}catch(_:Exception){}
+        refreshTrack();loadCurrentArtwork();refreshMiniPlayer();updatePlayButtons()
     }
 
     private fun currentUri(): Uri? = queue.getOrNull(player?.currentMediaItemIndex ?: -1)
@@ -775,15 +787,20 @@ class MainActivity : ComponentActivity() {
         }.start()
     }
 
+    private fun isAudioPlaying():Boolean {
+        return if(directPlayback)try{usbEngine.isPlaying()}catch(_:Exception){false}else player?.isPlaying==true
+    }
+
     private fun updatePlayButtons() {
-        val playing = player?.isPlaying == true
-        if (::playButton.isInitialized) playButton.text = if (playing) "Ⅱ" else "▶"
-        if (::miniPlay.isInitialized) miniPlay.text = if (playing) "Ⅱ" else "▶"
+        val playing=isAudioPlaying()
+        if(::playButton.isInitialized)playButton.text=if(playing)"Ⅱ" else "▶"
+        if(::miniPlay.isInitialized)miniPlay.text=if(playing)"Ⅱ" else "▶"
     }
 
     private fun toggle() {
-        val p = player ?: return
-        if (p.isPlaying) p.pause() else p.play()
+        if(directPlayback) {
+            try{if(usbEngine.isPlaying())usbEngine.pauseAudio() else if(!usbEngine.resumeAudio()){val i=player?.currentMediaItemIndex?:-1;if(i>=0)playIndex(i)}}catch(_:Exception){}
+        } else {val p=player?:return;if(p.isPlaying)p.pause()else p.play()}
         updatePlayButtons()
     }
 
@@ -799,10 +816,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(timer)
-        try { equalizer?.release() } catch (_: Exception) {}
-        equalizer = null
-        player?.release()
-        player = null
+        try { if(directPlayback)usbEngine.stopAudio(); if(usbController!=null)usbEngine.closeUsbDac() } catch (_:Exception) {}
+        try { usbController?.release() } catch (_:Exception) {}
+        usbController=null
+        try { equalizer?.release() } catch (_:Exception) {}
+        equalizer=null
+        player?.release();player=null
         super.onDestroy()
     }
 

@@ -44,4 +44,4 @@ jobs:
           TAG="v1.4.0"
           gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk#Mood-Player-v1.4.0.apk \
             --title "Mood Player v1.4.0" \
-            --notes "Mood Player 1.3.0. Apple Music-inspired Home and Now Playing redesign, larger artwork presentation, improved typography and spacing, and TIDAL discovery handoff to the official TIDAL app/site. TIDAL playback is not available inside Mood Player in this release. Local audio scanning and 5-band graphic EQ remain. Parametric EQ and exclusive bit-perfect USB output are not implemented or verified. Minimum Android 8.0 (API 26)."
+            --notes "Mood Player 1.5.0. Apple Music-inspired Home, Library and Now Playing redesign. Adds native USB Audio Class 1/2 direct playback engine for FLAC/WAV, USB permission and diagnostics, and Android output fallback for unsupported formats. DAC compatibility and bit-perfect status must be verified on the target device. TIDAL remains a search handoff to the official app/site. Minimum Android 8.0 (API 26)."
