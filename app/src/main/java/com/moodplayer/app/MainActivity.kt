@@ -591,9 +591,9 @@ class MainActivity : ComponentActivity() {
         val output=pageCard()
         output.addView(text("USB DAC OUTPUT",9f,blue,true).apply { letterSpacing=.14f })
         val verified=if(directPlayback)try{usbEngine.isBitPerfectIntegerPassActive()}catch(_:Exception){false}else false
-        val state=when { directPlayback&&verified->"Direct USB · bit-perfect pass active";directPlayback->"Direct USB · audio is playing";usbReady->"DAC connected · FLAC/WAV ready";else->"No USB DAC connected" }
+        val state=when { directPlayback&&verified->"Direct USB · integer PCM bypass active";directPlayback->"Direct USB · audio is playing";usbReady->"DAC connected · FLAC/WAV ready";else->"No USB DAC connected" }
         output.addView(text(state,16f,white,true).apply { setPadding(0,d(8),0,d(5)) })
-        output.addView(text("Direct output uses the USB device connection. MP3/AAC and unsupported formats continue through Android audio. Bit-perfect status appears only when the engine confirms an active integer pass.",11f,muted))
+        output.addView(text("Direct output can bypass Android audio processing for supported FLAC/WAV streams. The integer-pass indicator is an internal engine state, not external proof of bit-perfect output. MP3/AAC and unsupported formats use Android audio.",11f,muted))
         output.addView(action("Scan / connect USB DAC",true){usbController?.scanAndRequestPermission()},LinearLayout.LayoutParams(-1,d(44)).apply { topMargin=d(14) })
         output.addView(action("USB diagnostics"){showTrackDiagnostics()},LinearLayout.LayoutParams(-1,d(42)).apply { topMargin=d(8) })
         body.addView(output,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(12) })
@@ -661,7 +661,7 @@ class MainActivity : ComponentActivity() {
         val details=try{
             val info=if(usbReady)usbEngine.getDacInfo() else "USB DAC not initialized"
             val log=if(usbReady)usbEngine.getLastUsbDiagnostic() else UsbAudioController.getTrace()
-            val mode=if(directPlayback)"Direct USB active\nSample rate: "+usbEngine.getSampleRate()+" Hz\nSource depth: "+usbEngine.getSourceBitDepth()+" bit\nOutput depth: "+usbEngine.getNegotiatedBitDepth()+" bit\nBit-perfect integer pass: "+usbEngine.isBitPerfectIntegerPassActive() else "Direct playback inactive"
+            val mode=if(directPlayback){val rateUnverified=try{usbEngine.isSampleRateUnverified()}catch(_:Exception){true};"Direct USB active\nSample rate: "+usbEngine.getSampleRate()+" Hz"+(if(rateUnverified)" (not confirmed)"else" (confirmed by engine)")+"\nSource depth: "+usbEngine.getSourceBitDepth()+" bit\nUSB subslot width: "+usbEngine.getNegotiatedBitDepth()+" bit\nInteger PCM bypass (internal): "+usbEngine.isBitPerfectIntegerPassActive()}else "Direct playback inactive"
             mode+"\n\nDAC: "+info+"\n\nUSB log:\n"+log
         }catch(e:Exception){"USB diagnostic unavailable: "+e.message}
         AlertDialog.Builder(this).setTitle("USB audio diagnostics").setMessage(details).setPositiveButton("OK",null).show()
