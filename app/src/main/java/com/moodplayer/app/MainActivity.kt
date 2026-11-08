@@ -230,7 +230,7 @@ class MainActivity : ComponentActivity() {
             isFillViewport = true
             clipToPadding = false
             overScrollMode = View.OVER_SCROLL_NEVER
-            setPadding(d(20), d(7), d(20), d(17))
+            setPadding(d(18), d(10), d(18), d(18))
         }
         body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -243,17 +243,20 @@ class MainActivity : ComponentActivity() {
         miniBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = rounded(surface, 17)
-            setPadding(d(10), d(8), d(10), d(8))
+            background = rounded(Color.rgb(22, 29, 43), 19)
+            setPadding(d(10), d(9), d(10), d(9))
             visibility = View.GONE
+            elevation = d(5).toFloat()
             isClickable = true
+            isFocusable = true
             setOnClickListener { openNowPlaying() }
         }
         val miniArt = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            background = gradient(intArrayOf(Color.rgb(24, 74, 105), Color.rgb(39, 45, 91)), 10)
+            background = gradient(intArrayOf(Color.rgb(22, 91, 145), Color.rgb(30, 39, 88)), 12)
+            clipToOutline = true
         }
-        miniBar.addView(miniArt, LinearLayout.LayoutParams(d(43), d(43)).apply { rightMargin = d(11) })
+        miniBar.addView(miniArt, LinearLayout.LayoutParams(d(46), d(46)).apply { rightMargin = d(12) })
         artworkViews.add(miniArt)
         val miniCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         miniTitle = text("Nothing playing", 12f, white, true).apply {
@@ -267,22 +270,26 @@ class MainActivity : ComponentActivity() {
         miniCopy.addView(miniTitle)
         miniCopy.addView(miniArtist, LinearLayout.LayoutParams(-1, -2).apply { topMargin = d(4) })
         miniBar.addView(miniCopy, LinearLayout.LayoutParams(0, -2, 1f))
-        miniPlay = text("▶", 18f, white, true).apply {
+        miniPlay = text("▶", 17f, white, true).apply {
             gravity = Gravity.CENTER
+            background = rounded(Color.rgb(36, 91, 161), 14)
             setOnClickListener { toggle() }
         }
         miniBar.addView(miniPlay, LinearLayout.LayoutParams(d(42), d(42)))
-        root.addView(miniBar, LinearLayout.LayoutParams(-1, d(62)).apply {
+        root.addView(miniBar, LinearLayout.LayoutParams(-1, d(64)).apply {
             leftMargin = d(12); rightMargin = d(12); bottomMargin = d(7)
         })
 
         nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            background = ColorDrawableCompat(bg)
-            setPadding(d(7), d(5), d(7), d(5))
+            background = rounded(Color.rgb(15, 19, 28), 21)
+            setPadding(d(6), d(5), d(6), d(5))
+            elevation = d(7).toFloat()
         }
-        root.addView(nav, LinearLayout.LayoutParams(-1, d(58)))
+        root.addView(nav, LinearLayout.LayoutParams(-1, d(66)).apply {
+            leftMargin = d(10); rightMargin = d(10); bottomMargin = d(8); topMargin = d(3)
+        })
         setContentView(root)
         rebuildNav()
     }
@@ -293,27 +300,30 @@ class MainActivity : ComponentActivity() {
         val items = listOf(
             Triple("HOME", "⌂", "Home"),
             Triple("LIBRARY", "♫", "Library"),
-            Triple("EQ", "≋", "EQ"),
+            Triple("EQ", "≋", "Equalizer"),
             Triple("TIDAL", "◈", "TIDAL"),
-            Triple("MORE", "•••", "More")
+            Triple("MORE", "···", "More")
         )
         items.forEach { item ->
             val selected = (tab == item.first) || (tab == "PLAYER" && item.first == "HOME")
             val itemView = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(d(2), d(4), d(2), d(3))
+                setPadding(d(2), d(5), d(2), d(4))
+                background = if (selected) rounded(Color.rgb(20, 43, 73), 15) else null
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { tab = item.first; drawTab() }
             }
-            itemView.addView(text(item.second, if (item.first == "MORE") 15f else 18f,
-                if (selected) blue else muted, selected).apply { gravity = Gravity.CENTER })
-            itemView.addView(text(item.third, 9f, if (selected) blue else muted, selected).apply {
+            itemView.addView(text(item.second, if (item.first == "MORE") 17f else 19f,
+                if (selected) Color.rgb(100, 174, 255) else muted, selected).apply { gravity = Gravity.CENTER })
+            itemView.addView(text(item.third, 9f, if (selected) Color.rgb(151, 196, 255) else muted, selected).apply {
                 gravity = Gravity.CENTER
-                setPadding(0, d(4), 0, 0)
+                setPadding(0, d(3), 0, 0)
             })
-            nav.addView(itemView, LinearLayout.LayoutParams(0, -1, 1f))
+            nav.addView(itemView, LinearLayout.LayoutParams(0, -1, 1f).apply {
+                leftMargin = d(2); rightMargin = d(2)
+            })
         }
     }
 
@@ -333,19 +343,36 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun brandHeader() {
-        val line=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        line.addView(text("◖",26f,blue,true))
-        line.addView(text("MOOD",13f,white,true).apply { letterSpacing=.18f; setPadding(d(8),0,0,0) })
-        line.addView(text("PLAYER",13f,blue,true).apply { letterSpacing=.18f; setPadding(d(4),0,0,0) })
-        line.addView(LinearLayout(this),LinearLayout.LayoutParams(0,1,1f))
-        line.addView(text("1.5.0",10f,muted))
-        body.addView(line,LinearLayout.LayoutParams(-1,d(44)))
+        val line = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val mark = TextView(this).apply {
+            text = "≋"
+            textSize = 23f
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(105, 177, 255))
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            background = rounded(Color.rgb(18, 42, 72), 13)
+        }
+        line.addView(mark, LinearLayout.LayoutParams(d(39), d(39)))
+        line.addView(text("MOOD", 13f, white, true).apply {
+            letterSpacing = .17f
+            setPadding(d(10), 0, 0, 0)
+        })
+        line.addView(text("PLAYER", 13f, blue, true).apply {
+            letterSpacing = .17f
+            setPadding(d(4), 0, 0, 0)
+        })
+        line.addView(LinearLayout(this), LinearLayout.LayoutParams(0, 1, 1f))
+        line.addView(text("LOCAL • HI-FI", 9f, muted, true).apply { letterSpacing = .08f })
+        body.addView(line, LinearLayout.LayoutParams(-1, d(46)).apply { bottomMargin = d(5) })
     }
 
     private fun sectionTitle(title: String, subtitle: String? = null) {
-        body.addView(text(title, 25f, white, true).apply { setPadding(0, d(17), 0, d(5)) })
+        body.addView(text(title, 29f, white, true).apply {
+            setPadding(0, d(19), 0, d(5))
+            letterSpacing = -.025f
+        })
         if (subtitle != null) body.addView(text(subtitle, 12f, muted).apply {
-            setPadding(0, 0, 0, d(15))
+            setPadding(0, 0, 0, d(17))
         })
     }
 
@@ -362,52 +389,119 @@ class MainActivity : ComponentActivity() {
 
     private fun home() {
         brandHeader()
-        body.addView(text("Listen Now",32f,white,true).apply { setPadding(0,d(19),0,d(2)) })
-        body.addView(text("Your music. Your space.",13f,muted).apply { setPadding(0,0,0,d(21)) })
-        if(names.isEmpty()) {
-            body.addView(text("Start with your library",19f,white,true).apply { setPadding(0,d(24),0,d(7)) })
-            body.addView(text("Bring the music stored on this device into Mood Player.",12f,muted).apply { setPadding(0,0,0,d(17)) })
-            body.addView(action("＋  Add music",true){chooseFiles()},LinearLayout.LayoutParams(-1,d(48)))
-            body.addView(action("Scan device library"){scanDeviceMedia()},LinearLayout.LayoutParams(-1,d(46)).apply { topMargin=d(9) })
-        } else {
-            val feature=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-            val label=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-            label.addView(text("PICK UP WHERE YOU LEFT OFF",9f,blue,true).apply { letterSpacing=.14f },LinearLayout.LayoutParams(0,-2,1f))
-            label.addView(text("LOCAL MUSIC",9f,muted,true))
-            feature.addView(label)
-            feature.addView(coverView(270,currentUri()?:queue.firstOrNull()),LinearLayout.LayoutParams(-1,d(250)).apply { topMargin=d(15); bottomMargin=d(15) })
-            val index=(player?.currentMediaItemIndex?:0).coerceIn(0,names.lastIndex)
-            feature.addView(text(trackTitle(names[index]),21f,white,true).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END })
-            feature.addView(text(trackArtist(names[index]),12f,muted).apply { setPadding(0,d(5),0,d(14)); maxLines=1 })
-            val buttons=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-            buttons.addView(action(if(isAudioPlaying()) "Ⅱ  Now playing" else "▶  Play",true){ if(isAudioPlaying()) openNowPlaying() else playIndex(index) },LinearLayout.LayoutParams(0,d(46),1f).apply { rightMargin=d(5) })
-            buttons.addView(action("＋  Add music"){chooseFiles()},LinearLayout.LayoutParams(0,d(46),1f).apply { leftMargin=d(5) })
-            feature.addView(buttons)
-            body.addView(feature,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(28) })
-        }
-        val shelfTitle=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        shelfTitle.addView(text("Recently Added",20f,white,true),LinearLayout.LayoutParams(0,-2,1f))
-        shelfTitle.addView(text("See All  ›",11f,blue,true).apply { setOnClickListener { tab="LIBRARY"; drawTab() } })
-        body.addView(shelfTitle,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(13) })
-        if(names.isNotEmpty()) {
-            val scroll=HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false }
-            val shelf=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
-            for(i in 0 until min(10,names.size)) {
-                val tile=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; isClickable=true; isFocusable=true; setOnClickListener { playIndex(i) } }
-                tile.addView(coverView(d(138),queue.getOrNull(i)),LinearLayout.LayoutParams(d(138),d(138)))
-                tile.addView(text(trackTitle(names[i]),12f,white,true).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; setPadding(0,d(8),0,d(3)) })
-                tile.addView(text(trackArtist(names[i]),10f,muted).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END })
-                shelf.addView(tile,LinearLayout.LayoutParams(d(138),-2).apply { rightMargin=d(13) })
+        body.addView(text("YOUR MUSIC", 9f, blue, true).apply {
+            letterSpacing = .20f
+            setPadding(0, d(22), 0, d(5))
+        })
+        body.addView(text("Listen now.", 32f, white, true).apply {
+            letterSpacing = -.035f
+            setPadding(0, 0, 0, d(4))
+        })
+        body.addView(text("A quieter space for better listening.", 12f, muted).apply {
+            setPadding(0, 0, 0, d(20))
+        })
+
+        if (names.isEmpty()) {
+            val empty = pageCard().apply {
+                background = gradient(intArrayOf(Color.rgb(19, 48, 82), Color.rgb(17, 27, 46), Color.rgb(17, 21, 33)), 23)
             }
-            scroll.addView(shelf); body.addView(scroll,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(24) })
-        } else body.addView(text("Your recently added music will appear here.",12f,muted).apply { setPadding(0,0,0,d(25)) })
-        val tidal=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(0,d(14),0,d(14)) }
-        val copy=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-        copy.addView(text("DISCOVER MORE",9f,teal,true).apply { letterSpacing=.12f })
-        copy.addView(text("Explore TIDAL catalogue",14f,white,true).apply { setPadding(0,d(5),0,0) })
-        tidal.addView(copy,LinearLayout.LayoutParams(0,-2,1f))
-        tidal.addView(action("Open  ↗"){tab="TIDAL";drawTab()},LinearLayout.LayoutParams(d(100),d(40)))
-        body.addView(tidal,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(12) })
+            empty.addView(text("WELCOME TO MOOD", 9f, Color.rgb(124, 190, 255), true).apply {
+                letterSpacing = .16f
+            })
+            empty.addView(text("Your library,\nyour sound.", 27f, white, true).apply {
+                setPadding(0, d(13), 0, d(7))
+            })
+            empty.addView(text("Add local FLAC, WAV and other audio files to start listening.", 12f, Color.rgb(185, 198, 218)).apply {
+                setPadding(0, 0, 0, d(17))
+            })
+            empty.addView(action("＋  Add music", true) { chooseFiles() }, LinearLayout.LayoutParams(-1, d(48)))
+            empty.addView(action("Scan device library") { scanDeviceMedia() }, LinearLayout.LayoutParams(-1, d(44)).apply {
+                topMargin = d(8)
+            })
+            body.addView(empty, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(25) })
+        } else {
+            val feature = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = gradient(intArrayOf(Color.rgb(22, 42, 68), Color.rgb(19, 25, 39)), 23)
+                setPadding(d(16), d(16), d(16), d(16))
+            }
+            val label = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            label.addView(text("CONTINUE LISTENING", 9f, Color.rgb(126, 190, 255), true).apply {
+                letterSpacing = .15f
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            label.addView(text("LOCAL LIBRARY", 9f, muted, true))
+            feature.addView(label)
+            feature.addView(coverView(270, currentUri() ?: queue.firstOrNull()), LinearLayout.LayoutParams(-1, d(224)).apply {
+                topMargin = d(15); bottomMargin = d(15)
+            })
+            val index = (player?.currentMediaItemIndex ?: 0).coerceIn(0, names.lastIndex)
+            feature.addView(text(trackTitle(names[index]), 20f, white, true).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+            feature.addView(text(trackArtist(names[index]), 12f, muted).apply {
+                setPadding(0, d(5), 0, d(15))
+                maxLines = 1
+            })
+            val buttons = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            buttons.addView(action(if (isAudioPlaying()) "Ⅱ  Now playing" else "▶  Play", true) {
+                if (isAudioPlaying()) openNowPlaying() else playIndex(index)
+            }, LinearLayout.LayoutParams(0, d(46), 1f).apply { rightMargin = d(5) })
+            buttons.addView(action("＋  Add music") { chooseFiles() },
+                LinearLayout.LayoutParams(0, d(46), 1f).apply { leftMargin = d(5) })
+            feature.addView(buttons)
+            body.addView(feature, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(25) })
+        }
+
+        val shelfTitle = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        shelfTitle.addView(text("Recently added", 19f, white, true), LinearLayout.LayoutParams(0, -2, 1f))
+        shelfTitle.addView(text("See all  ›", 11f, blue, true).apply {
+            setOnClickListener { tab = "LIBRARY"; drawTab() }
+        })
+        body.addView(shelfTitle, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(13) })
+
+        if (names.isNotEmpty()) {
+            val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+            val shelf = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            for (i in 0 until min(10, names.size)) {
+                val tile = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener { playIndex(i) }
+                }
+                tile.addView(coverView(d(138), queue.getOrNull(i)), LinearLayout.LayoutParams(d(138), d(138)))
+                tile.addView(text(trackTitle(names[i]), 12f, white, true).apply {
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setPadding(0, d(8), 0, d(3))
+                })
+                tile.addView(text(trackArtist(names[i]), 10f, muted).apply {
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+                shelf.addView(tile, LinearLayout.LayoutParams(d(138), -2).apply { rightMargin = d(13) })
+            }
+            scroll.addView(shelf)
+            body.addView(scroll, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(25) })
+        } else {
+            body.addView(text("Your recently added tracks will appear here.", 12f, muted).apply {
+                setPadding(0, d(2), 0, d(25))
+            })
+        }
+
+        val tidal = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = rounded(surface, 19)
+            setPadding(d(14), d(13), d(12), d(13))
+        }
+        val copy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        copy.addView(text("DISCOVER MORE", 9f, teal, true).apply { letterSpacing = .13f })
+        copy.addView(text("Explore the TIDAL catalogue", 13f, white, true).apply { setPadding(0, d(5), 0, 0) })
+        tidal.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
+        tidal.addView(action("Explore  ↗") { tab = "TIDAL"; drawTab() }, LinearLayout.LayoutParams(d(104), d(40)))
+        body.addView(tidal, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(12) })
     }
 
     private fun addTrackRow(index: Int) {
@@ -424,25 +518,32 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun library() {
-        sectionTitle("Library", "Everything you have saved on this device.")
+        sectionTitle("Library", "Your collection, all in one place.")
         val search = EditText(this).apply {
-            hint = "Search songs or artists"
+            hint = "⌕   Search songs or artists"
             setHintTextColor(muted)
             setTextColor(white)
             textSize = 13f
             isSingleLine = true
-            background = rounded(surface2, 14)
-            setPadding(d(14), d(10), d(14), d(10))
+            background = rounded(Color.rgb(25, 31, 44), 15)
+            setPadding(d(15), d(10), d(15), d(10))
         }
-        body.addView(search, LinearLayout.LayoutParams(-1, d(46)).apply { bottomMargin = d(13) })
+        body.addView(search, LinearLayout.LayoutParams(-1, d(48)).apply { bottomMargin = d(12) })
         val actions = LinearLayout(this)
-        actions.addView(action("Scan device", true) { scanDeviceMedia() }, LinearLayout.LayoutParams(0, d(43), 1f).apply { rightMargin = d(5) })
-        actions.addView(action("Add files") { chooseFiles() }, LinearLayout.LayoutParams(0, d(43), 1f).apply { leftMargin = d(5) })
+        actions.addView(action("Scan device", true) { scanDeviceMedia() },
+            LinearLayout.LayoutParams(0, d(44), 1f).apply { rightMargin = d(5) })
+        actions.addView(action("＋  Add files") { chooseFiles() },
+            LinearLayout.LayoutParams(0, d(44), 1f).apply { leftMargin = d(5) })
         body.addView(actions)
-        body.addView(text(names.size.toString() + " TRACKS", 9f, muted, true).apply {
-            letterSpacing = .15f; setPadding(d(2), d(20), 0, d(10))
+        body.addView(text("YOUR COLLECTION   ·   " + names.size + " TRACKS", 9f, blue, true).apply {
+            letterSpacing = .13f
+            setPadding(d(2), d(22), 0, d(9))
         })
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = rounded(surface, 18)
+            setPadding(d(12), d(3), d(12), d(3))
+        }
         body.addView(list)
         fun fill(filter: String) {
             list.removeAllViews()
@@ -464,38 +565,113 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun nowPlaying() {
-        val top=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        top.addView(text("⌄",28f,white,true).apply { gravity=Gravity.CENTER; setOnClickListener { tab="HOME";drawTab() } },LinearLayout.LayoutParams(d(44),d(44)))
-        val heading=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER }
-        heading.addView(text("NOW PLAYING",10f,white,true).apply { letterSpacing=.2f;gravity=Gravity.CENTER })
-        heading.addView(text(if(directPlayback) "USB DAC OUTPUT" else "MOOD PLAYER",8f,muted).apply { gravity=Gravity.CENTER;setPadding(0,d(4),0,0) })
-        top.addView(heading,LinearLayout.LayoutParams(0,-2,1f))
-        top.addView(text("•••",18f,muted).apply { gravity=Gravity.CENTER;setOnClickListener { showTrackDiagnostics() } },LinearLayout.LayoutParams(d(44),d(44)))
-        body.addView(top,LinearLayout.LayoutParams(-1,d(48)).apply { bottomMargin=d(12) })
-        val size=min(d(326),resources.displayMetrics.widthPixels-d(52))
-        val art=coverView(size,currentUri()); art.elevation=d(13).toFloat()
-        body.addView(art,LinearLayout.LayoutParams(size,size).apply { gravity=Gravity.CENTER_HORIZONTAL;bottomMargin=d(27) })
-        val meta=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        val copy=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-        titleView=text("Nothing playing",22f,white,true).apply { maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END }
-        subView=text("Choose a track from your library",13f,muted).apply { setPadding(0,d(6),0,0);maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END }
-        copy.addView(titleView);copy.addView(subView);meta.addView(copy,LinearLayout.LayoutParams(0,-2,1f))
-        meta.addView(text("♡",24f,muted).apply { gravity=Gravity.CENTER;setOnClickListener { Toast.makeText(this@MainActivity,"Favorites are not available yet.",Toast.LENGTH_SHORT).show() } },LinearLayout.LayoutParams(d(42),d(42)))
-        body.addView(meta,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(17) })
-        nowSeek=SeekBar(this).apply { progressTintList=android.content.res.ColorStateList.valueOf(blue);thumbTintList=android.content.res.ColorStateList.valueOf(blue);progressBackgroundTintList=android.content.res.ColorStateList.valueOf(Color.rgb(61,68,82)) }
-        body.addView(nowSeek,LinearLayout.LayoutParams(-1,d(28)));nowSeek.setOnSeekBarChangeListener(seekListener())
-        val times=LinearLayout(this).apply { gravity=Gravity.CENTER_VERTICAL }
-        nowElapsed=text("0:00",10f,muted);nowDuration=text("0:00",10f,muted).apply { gravity=Gravity.END }
-        times.addView(nowElapsed,LinearLayout.LayoutParams(0,-2,1f));times.addView(nowDuration,LinearLayout.LayoutParams(0,-2,1f))
-        body.addView(times,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=d(19) })
-        val controls=LinearLayout(this).apply { gravity=Gravity.CENTER;setPadding(0,d(2),0,d(13)) }
-        controls.addView(text("|◀",24f,white,true).apply { gravity=Gravity.CENTER;setOnClickListener { val n=(player?.currentMediaItemIndex?:-1)-1;if(n in queue.indices)playIndex(n) } },LinearLayout.LayoutParams(d(60),d(58)))
-        playButton=text("▶",24f,Color.WHITE,true).apply { gravity=Gravity.CENTER;background=rounded(blue,32);setOnClickListener { toggle() } }
-        controls.addView(playButton,LinearLayout.LayoutParams(d(72),d(62)).apply { leftMargin=d(18);rightMargin=d(18) })
-        controls.addView(text("▶|",24f,white,true).apply { gravity=Gravity.CENTER;setOnClickListener { val n=(player?.currentMediaItemIndex?:-1)+1;if(n in queue.indices)playIndex(n) } },LinearLayout.LayoutParams(d(60),d(58)))
+        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        top.addView(text("⌄", 27f, white, true).apply {
+            gravity = Gravity.CENTER
+            background = rounded(surface, 14)
+            setOnClickListener { tab = "HOME"; drawTab() }
+        }, LinearLayout.LayoutParams(d(43), d(43)))
+        val heading = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        heading.addView(text("NOW PLAYING", 10f, white, true).apply {
+            letterSpacing = .19f
+            gravity = Gravity.CENTER
+        })
+        heading.addView(text(if (directPlayback) "DIRECT USB OUTPUT" else "MOOD PLAYER", 8f, muted).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, d(4), 0, 0)
+        })
+        top.addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(text("•••", 18f, muted).apply {
+            gravity = Gravity.CENTER
+            background = rounded(surface, 14)
+            setOnClickListener { showTrackDiagnostics() }
+        }, LinearLayout.LayoutParams(d(43), d(43)))
+        body.addView(top, LinearLayout.LayoutParams(-1, d(48)).apply { bottomMargin = d(15) })
+
+        val size = min(d(318), resources.displayMetrics.widthPixels - d(54))
+        val artFrame = LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            background = gradient(intArrayOf(Color.rgb(25, 62, 101), Color.rgb(17, 22, 38)), 24)
+            setPadding(d(9), d(9), d(9), d(9))
+            elevation = d(12).toFloat()
+        }
+        val art = coverView(size, currentUri())
+        artFrame.addView(art, LinearLayout.LayoutParams(size, size))
+        body.addView(artFrame, LinearLayout.LayoutParams(size + d(18), size + d(18)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = d(26)
+        })
+
+        val meta = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val copy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        titleView = text("Nothing playing", 22f, white, true).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            letterSpacing = -.02f
+        }
+        subView = text("Choose a track from your library", 13f, muted).apply {
+            setPadding(0, d(6), 0, 0)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        copy.addView(titleView)
+        copy.addView(subView)
+        meta.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
+        meta.addView(text("♡", 24f, muted).apply {
+            gravity = Gravity.CENTER
+            setOnClickListener {
+                Toast.makeText(this@MainActivity, "Favorites are not available yet.", Toast.LENGTH_SHORT).show()
+            }
+        }, LinearLayout.LayoutParams(d(42), d(42)))
+        body.addView(meta, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(17) })
+
+        nowSeek = SeekBar(this).apply {
+            progressTintList = android.content.res.ColorStateList.valueOf(blue)
+            thumbTintList = android.content.res.ColorStateList.valueOf(Color.rgb(135, 193, 255))
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(55, 65, 82))
+        }
+        body.addView(nowSeek, LinearLayout.LayoutParams(-1, d(28)))
+        nowSeek.setOnSeekBarChangeListener(seekListener())
+        val times = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        nowElapsed = text("0:00", 10f, muted)
+        nowDuration = text("0:00", 10f, muted).apply { gravity = Gravity.END }
+        times.addView(nowElapsed, LinearLayout.LayoutParams(0, -2, 1f))
+        times.addView(nowDuration, LinearLayout.LayoutParams(0, -2, 1f))
+        body.addView(times, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(20) })
+
+        val controls = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0, d(1), 0, d(15)) }
+        controls.addView(text("|◀", 23f, white, true).apply {
+            gravity = Gravity.CENTER
+            setOnClickListener {
+                val n = (player?.currentMediaItemIndex ?: -1) - 1
+                if (n in queue.indices) playIndex(n)
+            }
+        }, LinearLayout.LayoutParams(d(62), d(58)))
+        playButton = text("▶", 23f, Color.WHITE, true).apply {
+            gravity = Gravity.CENTER
+            background = gradient(intArrayOf(Color.rgb(73, 157, 255), Color.rgb(35, 99, 203)), 24)
+            elevation = d(7).toFloat()
+            setOnClickListener { toggle() }
+        }
+        controls.addView(playButton, LinearLayout.LayoutParams(d(72), d(62)).apply {
+            leftMargin = d(17); rightMargin = d(17)
+        })
+        controls.addView(text("▶|", 23f, white, true).apply {
+            gravity = Gravity.CENTER
+            setOnClickListener {
+                val n = (player?.currentMediaItemIndex ?: -1) + 1
+                if (n in queue.indices) playIndex(n)
+            }
+        }, LinearLayout.LayoutParams(d(62), d(58)))
         body.addView(controls)
-        val out=if(directPlayback) "USB DAC DIRECT OUTPUT" else if(usbReady) "USB DAC READY · FLAC/WAV" else "ANDROID AUDIO OUTPUT"
-        body.addView(text(out,9f,if(directPlayback)teal else muted,true).apply { gravity=Gravity.CENTER;letterSpacing=.12f;setPadding(0,d(13),0,d(13));background=rounded(surface,13) },LinearLayout.LayoutParams(-1,d(42)))
+
+        val out = if (directPlayback) "USB DAC DIRECT OUTPUT" else if (usbReady) "USB DAC READY · FLAC/WAV" else "ANDROID AUDIO OUTPUT"
+        body.addView(text(out, 9f, if (directPlayback) teal else muted, true).apply {
+            gravity = Gravity.CENTER
+            letterSpacing = .12f
+            setPadding(0, d(13), 0, d(13))
+            background = rounded(surface, 14)
+        }, LinearLayout.LayoutParams(-1, d(43)))
         refreshTrack()
     }
 
