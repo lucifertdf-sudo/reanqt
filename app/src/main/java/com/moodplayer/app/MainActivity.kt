@@ -627,10 +627,10 @@ class MainActivity : ComponentActivity() {
             usbEngine.onDeviceForceDisconnectedCallback={handler.post{usbReady=false;val i=player?.currentMediaItemIndex?:-1;directPlayback=false;directDurationMs=0L;if(i in queue.indices)player?.play();Toast.makeText(this,"USB DAC disconnected.",Toast.LENGTH_LONG).show();updatePlayButtons()}}
             usbController=UsbAudioController(this).apply {
                 onDeviceReady={fd->Thread{val ready=try{usbEngine.initUsbDac(fd)}catch(_:Exception){false};runOnUiThread{usbReady=ready;Toast.makeText(this@MainActivity,if(ready)"USB DAC ready. FLAC/WAV can use direct USB."else"USB DAC detected, direct initialization failed.",Toast.LENGTH_LONG).show();if(tab=="MORE")drawTab()}}.start()}
+                onDeviceClosing={try{usbEngine.stopAudio();usbEngine.closeUsbDac()}catch(_:Exception){}}
                 onDeviceDetached={
                     val wasDirect=directPlayback;val i=player?.currentMediaItemIndex?:-1
                     val pos=if(wasDirect)try{(usbEngine.getPosition()*1000.0).toLong().coerceAtLeast(0L)}catch(_:Exception){0L}else 0L
-                    try{usbEngine.stopAudio();usbEngine.closeUsbDac()}catch(_:Exception){}
                     runOnUiThread{usbReady=false;directPlayback=false;directDurationMs=0L;if(wasDirect&&i in queue.indices){player?.seekTo(i,pos);player?.play()};Toast.makeText(this@MainActivity,"USB DAC disconnected. Android output restored.",Toast.LENGTH_SHORT).show();updatePlayButtons();if(tab=="MORE"||tab=="PLAYER")drawTab()}
                 }
                 onDeviceAttached={runOnUiThread{Toast.makeText(this@MainActivity,"USB audio device detected.",Toast.LENGTH_SHORT).show()}}
@@ -816,8 +816,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(timer)
-        try { if(directPlayback)usbEngine.stopAudio(); if(usbController!=null)usbEngine.closeUsbDac() } catch (_:Exception) {}
-        try { usbController?.release() } catch (_:Exception) {}
+        try {
+            if (usbController != null) {
+                usbController?.release()
+            } else {
+                if (directPlayback) usbEngine.stopAudio()
+                usbEngine.closeUsbDac()
+            }
+        } catch (_:Exception) {}
         usbController=null
         try { equalizer?.release() } catch (_:Exception) {}
         equalizer=null
