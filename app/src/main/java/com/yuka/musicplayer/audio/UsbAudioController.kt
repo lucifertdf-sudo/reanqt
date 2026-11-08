@@ -24,6 +24,8 @@ class UsbAudioController(context: Context) {
     // Callback when a valid USB Audio device is ready (permission granted and opened)
     var onDeviceReady: ((Int) -> Unit)? = null
     var onDeviceDetached: (() -> Unit)? = null
+    // Called before the Java USB connection closes so native libusb can stop and release its handle.
+    var onDeviceClosing: (() -> Unit)? = null
     var onDeviceAttached: (() -> Unit)? = null
 
     private val permissionReceiver = object : BroadcastReceiver() {
@@ -195,25 +197,10 @@ class UsbAudioController(context: Context) {
                     openedDeviceName = device.deviceName
                     val fd = conn.fileDescriptor
                     log("usbManager.openDevice SUCCESS: FD=$fd")
-                    val claimedInterfaceIds = mutableSetOf<Int>()
-                    for (i in 0 until device.interfaceCount) {
-                        val iface = device.getInterface(i)
-                        if (!claimedInterfaceIds.add(iface.id)) {
-                            continue
-                        }
-                        val cls = iface.interfaceClass
-                        val sub = iface.interfaceSubclass
-                        if (cls == UsbConstants.USB_CLASS_AUDIO) {
-                            try {
-                                val claimed = conn.claimInterface(iface, true)
-                                log("  Iface ${iface.id} (cls=$cls sub=$sub) Java claimInterface(force=true): $claimed")
-                            } catch (e: Exception) {
-                                log("  Iface ${iface.id} (cls=$cls sub=$sub) Java claimInterface threw: ${e.message}")
-                            }
-                        } else {
-                            log("  Iface ${iface.id} (cls=$cls sub=$sub) non-audio interface skipped")
-                        }
-                    }
+                    // The native libusb engine is the sole owner of USB interface claims.
+                    // Claiming through UsbDeviceConnection as well can make the two layers
+                    // contend for the same interface on the shared USB file descriptor.
+                    log("Leaving USB interface claims to the native libusb engine.")
                     log("Invoking onDeviceReady with FD $fd...")
                     onDeviceReady?.invoke(fd)
                 } else {
@@ -229,11 +216,20 @@ class UsbAudioController(context: Context) {
 
     fun closeDevice() {
         synchronized(usbLock) {
-            log("closeDevice() called. Current connection: $usbDeviceConnection")
-            try {
-                usbDeviceConnection?.close()
-            } catch (e: Exception) {
-                log("Error closing usbDeviceConnection: ${e.message}")
+            val connection = usbDeviceConnection
+            log("closeDevice() called. Current connection: $connection")
+            if (connection != null) {
+                // The native engine wraps this file descriptor; release it before closing the owner.
+                try {
+                    onDeviceClosing?.invoke()
+                } catch (e: Exception) {
+                    log("Error while closing native USB audio: ${e.message}")
+                }
+                try {
+                    connection.close()
+                } catch (e: Exception) {
+                    log("Error closing usbDeviceConnection: ${e.message}")
+                }
             }
             usbDeviceConnection = null
             openedDeviceName = null
