@@ -33,7 +33,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mood-Player-v1.4.0
+          name: Mood-Player-v1.5.0
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
@@ -41,7 +41,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v1.4.0"
-          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk#Mood-Player-v1.4.0.apk \
-            --title "Mood Player v1.4.0" \
+          TAG="v1.5.0"
+          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk#Mood-Player-v1.5.0.apk \
+            --title "Mood Player v1.5.0" \
             --notes "Mood Player 1.5.0. Apple Music-inspired Home, Library and Now Playing redesign. Adds native USB Audio Class 1/2 direct playback engine for FLAC/WAV, USB permission and diagnostics, and Android output fallback for unsupported formats. DAC compatibility and bit-perfect status must be verified on the target device. TIDAL remains a search handoff to the official app/site. Minimum Android 8.0 (API 26)."
